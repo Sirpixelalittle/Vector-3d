@@ -196,6 +196,19 @@ pub enum Phase {
     GameOver,
 }
 
+/// Things that just happened, for presentation layers (audio, and later
+/// maybe rumble/score popups). Drained by the caller each frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GameEvent {
+    Shot,
+    BoltFired(Vec3),
+    BoltImpact(Vec3),
+    EnemyDied(Vec3),
+    PlayerHit,
+    WaveStarted(u32),
+    GameOver,
+}
+
 pub struct Game {
     pub wave: u32,
     pub score: u32,
@@ -207,6 +220,8 @@ pub struct Game {
     /// Set on the frame the player takes damage (drives shake/flash).
     pub damage_flash: f32,
     pub iframes: f32,
+    /// Drain with `std::mem::take` each frame.
+    pub events: Vec<GameEvent>,
     recoil: f32,
     fire_cooldown: f32,
     spawn_queue: Vec<EnemyKind>,
@@ -228,6 +243,7 @@ impl Game {
             particles: Vec::new(),
             damage_flash: 0.0,
             iframes: 0.0,
+            events: Vec::new(),
             recoil: 0.0,
             fire_cooldown: 0.0,
             spawn_queue: Vec::new(),
@@ -278,6 +294,7 @@ impl Game {
                     self.spawn_queue = compose_wave(self.wave);
                     self.spawn_timer = 0.0;
                     self.phase = Phase::Fighting;
+                    self.events.push(GameEvent::WaveStarted(self.wave));
                 } else {
                     self.phase = Phase::Intermission { timer };
                 }
@@ -304,6 +321,7 @@ impl Game {
         if self.hp <= 0.0 {
             self.hp = 0.0;
             self.phase = Phase::GameOver;
+            self.events.push(GameEvent::GameOver);
         }
     }
 
@@ -347,6 +365,7 @@ impl Game {
         }
         self.fire_cooldown = FIRE_COOLDOWN;
         self.recoil = 1.0;
+        self.events.push(GameEvent::Shot);
 
         let wall_dist = soup.raycast(eye, aim, GUN_RANGE).unwrap_or(GUN_RANGE);
         let mut best: Option<(usize, f32)> = None;
@@ -394,6 +413,7 @@ impl Game {
     fn kill(&mut self, index: usize) {
         let enemy = self.enemies.swap_remove(index);
         self.score += enemy.kind.score();
+        self.events.push(GameEvent::EnemyDied(enemy.center()));
         burst(
             &mut self.particles,
             &mut self.rng,
@@ -462,6 +482,7 @@ impl Game {
                         color: vec4(tint.x, tint.y, tint.z, 1.7),
                         damage: bolt_damage(wave),
                     });
+                    self.events.push(GameEvent::BoltFired(from));
                 }
             }
 
@@ -471,6 +492,7 @@ impl Game {
                 self.hp -= self.enemies[i].kind.contact_damage();
                 self.iframes = IFRAME_SECONDS;
                 self.damage_flash = 1.0;
+                self.events.push(GameEvent::PlayerHit);
                 let enemy = &mut self.enemies[i];
                 let away = (enemy.pos - player_ground).normalize_or_zero();
                 enemy.pos += away * 1.4;
@@ -517,6 +539,7 @@ impl Game {
             {
                 let impact = bolt.pos + step / step_len * t.min(step_len);
                 spark(&mut self.particles, &mut self.rng, impact, 4);
+                self.events.push(GameEvent::BoltImpact(impact));
                 self.bolts.swap_remove(i);
                 continue;
             }
@@ -537,6 +560,7 @@ impl Game {
         if damage > 0.0 {
             self.hp -= damage;
             self.damage_flash = 1.0;
+            self.events.push(GameEvent::PlayerHit);
         }
     }
 

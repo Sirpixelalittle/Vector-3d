@@ -14,7 +14,8 @@ mod game;
 
 use anyhow::{Context, Result};
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4, vec2, vec3};
-use game::{EnemyKind, Game, Phase};
+use game::{EnemyKind, Game, GameEvent, Phase};
+use vex_audio::{AudioEngine, Sfx};
 use vex_core::{EdgeKind, Frustum, Segment, VecModel, font, phosphor};
 use vex_engine::{App, BakedScene, FpsController, Input, KeyCode, MouseButton, TriangleSoup};
 use vex_render::{
@@ -426,6 +427,10 @@ struct ArenaApp {
     world_uploaded: bool,
     time: f32,
     post_settings: PostSettings,
+    /// Created on the first captured click — that user gesture is exactly
+    /// what browser autoplay policies require before audio may start.
+    audio: Option<AudioEngine>,
+    audio_failed: bool,
 }
 
 impl ArenaApp {
@@ -482,7 +487,40 @@ impl ArenaApp {
             renderers: None,
             world_uploaded: false,
             time: 0.0,
+            audio: None,
+            audio_failed: false,
         })
+    }
+
+    fn ensure_audio(&mut self) {
+        if self.audio.is_some() || self.audio_failed {
+            return;
+        }
+        match AudioEngine::new() {
+            Ok(audio) => self.audio = Some(audio),
+            Err(err) => {
+                log::warn!("audio disabled: {err:#}");
+                self.audio_failed = true;
+            }
+        }
+    }
+
+    fn play_events(&mut self, events: Vec<GameEvent>) {
+        let Some(audio) = self.audio.as_mut() else {
+            return;
+        };
+        audio.set_listener(self.player.eye(), self.player.rotation());
+        for event in events {
+            match event {
+                GameEvent::Shot => audio.play(Sfx::Shot),
+                GameEvent::BoltFired(at) => audio.play_at(Sfx::BoltFire, at),
+                GameEvent::BoltImpact(at) => audio.play_at(Sfx::BoltImpact, at),
+                GameEvent::EnemyDied(at) => audio.play_at(Sfx::EnemyDeath, at),
+                GameEvent::PlayerHit => audio.play(Sfx::PlayerHit),
+                GameEvent::WaveStarted(_) => audio.play(Sfx::WaveStart),
+                GameEvent::GameOver => audio.play(Sfx::GameOver),
+            }
+        }
     }
 
     /// Full look direction (includes pitch) — the hitscan ray.
@@ -722,11 +760,16 @@ impl App for ArenaApp {
             self.game.restart();
             self.player.pos = self.scene.player_spawn;
         }
+        if input.is_captured() {
+            self.ensure_audio();
+        }
         self.player.update(dt, input, &self.soup);
         let attack = input.is_captured() && input.is_mouse_just_pressed(MouseButton::Left);
         let (eye, aim) = (self.player.eye(), self.aim());
         self.game
             .update(dt, eye, aim, self.muzzle_world(), attack, &self.soup);
+        let events = std::mem::take(&mut self.game.events);
+        self.play_events(events);
     }
 
     fn render(

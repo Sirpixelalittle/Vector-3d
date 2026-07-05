@@ -1,0 +1,10 @@
+[package]
+name = "vex-audio"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kira = "0.12"
+glam.workspace = true
+anyhow.workspace = true
+log.workspace = true

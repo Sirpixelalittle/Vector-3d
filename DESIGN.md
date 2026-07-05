@@ -308,6 +308,16 @@ wave/score HUD, damage flash + camera shake; game over + restart. Game
 rules live in a pure, unit-tested module (`examples/04-arena/src/game.rs`);
 deterministic RNG makes headless `--demo` screenshots reproducible.
 
+**M7 — Sound** ✅ *2026-07-05*
+`vex-audio`: 3D spatial audio on kira 0.12 (listener follows the camera;
+positional one-shots via transient spatial tracks with linear distance
+attenuation, 2–42 m). Every SFX is procedurally synthesized at startup —
+square/saw/sine sweeps and xorshift noise bursts, deterministic, zero
+audio files (era-correct, and free bytes on the web build). Games emit
+`GameEvent`s; the app drains them into the mixer. Audio starts on the
+first captured click, which doubles as the browser autoplay gesture.
+Works native and wasm.
+
 **M6+ — Stretch**
 SVG frame export (posters/marketing shots), WebGPU browser demo,
 oscilloscope/ILDA laser output (a *true* vector display backend — the

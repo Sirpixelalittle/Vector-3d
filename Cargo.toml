@@ -5,6 +5,7 @@ members = [
     "crates/vex-render",
     "crates/vex-engine",
     "crates/vex-convert",
+    "crates/vex-audio",
     "examples/01-cube",
     "examples/02-viewer",
     "examples/03-corridor",
@@ -20,6 +21,7 @@ vex-core = { path = "crates/vex-core" }
 vex-render = { path = "crates/vex-render" }
 vex-engine = { path = "crates/vex-engine" }
 vex-convert = { path = "crates/vex-convert" }
+vex-audio = { path = "crates/vex-audio" }
 
 gltf = { version = "1.4", default-features = false, features = ["utils", "names", "KHR_materials_emissive_strength"] }
 base64 = "0.22"
@@ -31,7 +33,7 @@ console_log = "1"
 console_error_panic_hook = "0.1"
 wgpu = "30"
 winit = "0.30"
-glam = { version = "0.33", features = ["bytemuck"] }
+glam = { version = "0.33", features = ["bytemuck", "mint"] }
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
 png = "0.18"
