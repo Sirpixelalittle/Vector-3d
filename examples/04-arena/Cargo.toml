@@ -1,0 +1,20 @@
+[package]
+name = "arena"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vex-core.workspace = true
+vex-render.workspace = true
+vex-engine.workspace = true
+wgpu.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+log.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_log.workspace = true
+console_error_panic_hook.workspace = true

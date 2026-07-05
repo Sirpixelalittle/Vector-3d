@@ -1,0 +1,95 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "vector3d gen_test_assets"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "shard",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0
+     },
+     "indices": 1,
+     "material": 0,
+     "mode": 4
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "shard",
+   "pbrMetallicRoughness": {},
+   "emissiveFactor": [
+    1.0,
+    0.15,
+    0.9
+   ],
+   "extensions": {
+    "KHR_materials_emissive_strength": {
+     "emissiveStrength": 1.3
+    }
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AAAAAM3MDD8AAAAAAAAAAM3MDL8AAAAACtejPgAAAAAAAAAACtcjPgAAAAC9440+CtcjvgAAAAC9440+CtejvgAAAADZuTQkCtcjvgAAAAC9442+CtcjPgAAAAC9442+AAAAAAIAAAADAAAAAQAAAAMAAAACAAAAAAAAAAMAAAAEAAAAAQAAAAQAAAADAAAAAAAAAAQAAAAFAAAAAQAAAAUAAAAEAAAAAAAAAAUAAAAGAAAAAQAAAAYAAAAFAAAAAAAAAAYAAAAHAAAAAQAAAAcAAAAGAAAAAAAAAAcAAAACAAAAAQAAAAIAAAAHAAAA",
+   "byteLength": 240
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 96
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 96,
+   "byteLength": 144
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 8,
+   "type": "VEC3",
+   "min": [
+    -0.32,
+    -0.55,
+    -0.2771281292110205
+   ],
+   "max": [
+    0.32,
+    0.55,
+    0.27712812921102037
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5125,
+   "count": 36,
+   "type": "SCALAR"
+  }
+ ],
+ "extensionsUsed": [
+  "KHR_materials_emissive_strength"
+ ]
+}

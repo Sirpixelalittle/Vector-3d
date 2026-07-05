@@ -1,0 +1,34 @@
+// M3 corridor scene. Paths are relative to this file.
+// Plants are authored near-white and recolored per instance via `tint`.
+(
+    models: {
+        "corridor": "corridor.vec",
+        "plant": "plant.vec",
+        "sword": "../sword.vec",
+    },
+    instances: [
+        (model: "corridor"),
+
+        // Room A (player side): green plants flanking the walk.
+        (model: "plant", position: (2.7, 0.0, 7.6), yaw_deg: 15.0, scale: 1.35,
+         tint: (0.1, 1.0, 0.25)),
+        (model: "plant", position: (-2.7, 0.0, 7.4), yaw_deg: 160.0, scale: 1.3,
+         tint: (0.1, 1.0, 0.25)),
+        (model: "plant", position: (2.55, 0.0, 1.8), yaw_deg: 250.0, scale: 1.15,
+         tint: (0.35, 1.0, 0.1)),
+        (model: "plant", position: (-2.55, 0.0, 1.9), yaw_deg: 80.0, scale: 1.2,
+         tint: (0.35, 1.0, 0.1)),
+
+        // Room B (through the door): magenta variants.
+        (model: "plant", position: (2.4, 0.0, -2.2), yaw_deg: 200.0, scale: 0.7,
+         tint: (1.0, 0.15, 0.9), intensity: 0.9),
+        (model: "plant", position: (-2.4, 0.0, -2.0), yaw_deg: 20.0, scale: 0.75,
+         tint: (1.0, 0.15, 0.9), intensity: 0.9),
+    ],
+    player: (position: (0.0, 0.0, 7.6), yaw_deg: 0.0),
+    weapon: Some((model: "sword")),
+    fog_density: 0.09,
+    // Engine-level look: assets only author *relative* emissive strengths;
+    // this block (and the [ ]/- =/9 0 keys) decides what reaches the eye.
+    post: (glow: 0.45, bloom_strength: 0.12, exposure: 1.0),
+)

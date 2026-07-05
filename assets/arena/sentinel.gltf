@@ -1,0 +1,146 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "vector3d gen_test_assets"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "sentinel",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0
+     },
+     "indices": 1,
+     "material": 0,
+     "mode": 4
+    },
+    {
+     "attributes": {
+      "POSITION": 2
+     },
+     "indices": 3,
+     "material": 1,
+     "mode": 2
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "sentinel",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     1.0,
+     0.55,
+     0.05,
+     1.0
+    ]
+   }
+  },
+  {
+   "name": "sentinel-eye",
+   "pbrMetallicRoughness": {},
+   "emissiveFactor": [
+    1.0,
+    0.25,
+    0.05
+   ],
+   "extensions": {
+    "KHR_materials_emissive_strength": {
+     "emissiveStrength": 2.2
+    }
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AAAAAGZmZj8AAAAAAAAAAGZmZr8AAAAAUrgePwAAAAAAAAAAAAAAAAAAAABSuB4/UrgevwAAAAAAAAAAAAAAAAAAAABSuB6/AAAAAAIAAAADAAAAAQAAAAMAAAACAAAAAAAAAAMAAAAEAAAAAQAAAAQAAAADAAAAAAAAAAQAAAAFAAAAAQAAAAUAAAAEAAAAAAAAAAUAAAACAAAAAQAAAAIAAAAFAAAAuB4FPgAAAADsUTi/AAAAALgeBT7sUTi/uB4FvgAAAADsUTi/AAAAALgeBb7sUTi/AAAAAAEAAAACAAAAAwAAAA==",
+   "byteLength": 232
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 72
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 72,
+   "byteLength": 96
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 168,
+   "byteLength": 48
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 216,
+   "byteLength": 16
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 6,
+   "type": "VEC3",
+   "min": [
+    -0.62,
+    -0.9,
+    -0.62
+   ],
+   "max": [
+    0.62,
+    0.9,
+    0.62
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5125,
+   "count": 24,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 4,
+   "type": "VEC3",
+   "min": [
+    -0.13,
+    -0.13,
+    -0.72
+   ],
+   "max": [
+    0.13,
+    0.13,
+    -0.72
+   ]
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5125,
+   "count": 4,
+   "type": "SCALAR"
+  }
+ ],
+ "extensionsUsed": [
+  "KHR_materials_emissive_strength"
+ ]
+}

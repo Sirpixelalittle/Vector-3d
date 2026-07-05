@@ -1,0 +1,13 @@
+[package]
+name = "cube"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vex-core.workspace = true
+vex-render.workspace = true
+vex-engine.workspace = true
+wgpu.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+env_logger.workspace = true

@@ -1,0 +1,21 @@
+[package]
+name = "vex-engine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vex-core.workspace = true
+vex-render.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+glam.workspace = true
+pollster.workspace = true
+anyhow.workspace = true
+log.workspace = true
+serde.workspace = true
+ron.workspace = true
+# std::time::Instant that also works in the browser (performance.now).
+web-time.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures.workspace = true

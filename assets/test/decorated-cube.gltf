@@ -1,0 +1,138 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "vector3d gen_test_assets"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "decorated-cube",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0
+     },
+     "indices": 1,
+     "material": 0,
+     "mode": 4
+    },
+    {
+     "attributes": {
+      "POSITION": 2
+     },
+     "indices": 3,
+     "material": 1,
+     "mode": 3
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "body",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.02,
+     1.0,
+     0.1,
+     1.0
+    ]
+   }
+  },
+  {
+   "name": "neon",
+   "pbrMetallicRoughness": {},
+   "emissiveFactor": [
+    0.05,
+    0.75,
+    1.0
+   ]
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AACAvwAAgL8AAIC/AACAPwAAgL8AAIC/AACAPwAAgL8AAIA/AACAvwAAgL8AAIA/AACAvwAAgD8AAIC/AACAPwAAgD8AAIC/AACAPwAAgD8AAIA/AACAvwAAgD8AAIA/AAAAAAEAAAACAAAAAAAAAAIAAAADAAAABAAAAAYAAAAFAAAABAAAAAcAAAAGAAAAAAAAAAQAAAAFAAAAAAAAAAUAAAABAAAAAwAAAAIAAAAGAAAAAwAAAAYAAAAHAAAAAAAAAAMAAAAHAAAAAAAAAAcAAAAEAAAAAQAAAAUAAAAGAAAAAQAAAAYAAAACAAAAzcxMvwAAgD/NzEy/zcxMPwAAgD/NzEy/zcxMPwAAgD/NzEw/zcwMvwAAgD/NzEw/zcwMvwAAgD/NzAy/zcwMPwAAgD/NzAy/zcwMPwAAgD/NzAw/mpmZvgAAgD/NzAw/mpmZvgAAgD+amZm+mpmZPgAAgD+amZm+mpmZPgAAgD+amZk+zcxMvQAAgD+amZk+zcxMvQAAgD/NzEy9zcxMPQAAgD/NzEy9zcxMPQAAgD/NzEw9AAAAAAEAAAACAAAAAwAAAAQAAAAFAAAABgAAAAcAAAAIAAAACQAAAAoAAAALAAAADAAAAA0AAAAOAAAA",
+   "byteLength": 480
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 96
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 96,
+   "byteLength": 144
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 240,
+   "byteLength": 180
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 420,
+   "byteLength": 60
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 8,
+   "type": "VEC3",
+   "min": [
+    -1.0,
+    -1.0,
+    -1.0
+   ],
+   "max": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5125,
+   "count": 36,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 15,
+   "type": "VEC3",
+   "min": [
+    -0.8,
+    1.0,
+    -0.8
+   ],
+   "max": [
+    0.8,
+    1.0,
+    0.8
+   ]
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5125,
+   "count": 15,
+   "type": "SCALAR"
+  }
+ ]
+}

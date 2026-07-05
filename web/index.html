@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>vector3d — arena</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #29d68a;
+               font: 14px/1.5 monospace; }
+  body { display: flex; flex-direction: column; align-items: center;
+         justify-content: center; gap: 14px; }
+  canvas { outline: none; max-width: 100vw; max-height: 88vh; }
+  #hint  { opacity: 0.75; text-align: center; padding: 0 1em; }
+  a { color: #35b5ff; }
+</style>
+</head>
+<body>
+<div id="hint">
+  loading the arena…<br>
+  needs a <b>WebGPU</b> browser (Chrome / Edge; Firefox 141+ on Windows).<br>
+  click to grab the mouse · WASD + Space · left click fires · R restarts · C for CRT
+</div>
+<script type="module">
+  import init from './arena.js';
+  const hint = document.getElementById('hint');
+  if (!navigator.gpu) {
+    hint.innerHTML = 'this browser has no WebGPU — try Chrome or Edge.';
+  } else {
+    init().then(() => {
+      hint.innerHTML =
+        'click to grab the mouse · WASD + Space · left click fires · ' +
+        'R restarts · C for CRT · Esc releases';
+    }).catch((e) => {
+      hint.innerHTML = 'failed to start: ' + e + '<br>(check the console)';
+    });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+// Arena wave-fight demo. Enemies (shard.vec / sentinel.vec) are dynamic and
+// loaded by the game directly — the scene only owns the static world.
+(
+    models: {
+        "arena": "arena.vec",
+        "pistol": "../pistol.vec",
+    },
+    instances: [
+        (model: "arena"),
+    ],
+    player: (position: (0.0, 0.0, 0.0), yaw_deg: 0.0),
+    weapon: Some((model: "pistol")),
+    fog_density: 0.030,
+    post: (glow: 0.45, bloom_strength: 0.12, exposure: 1.0),
+)

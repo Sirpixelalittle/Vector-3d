@@ -1,0 +1,13 @@
+[package]
+name = "vex-convert"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vex-core.workspace = true
+glam.workspace = true
+gltf.workspace = true
+base64.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
