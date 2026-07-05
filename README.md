@@ -3,8 +3,9 @@
 A 3D engine that draws nothing but glowing lines — the look of vector CRTs
 (Battlezone, Tempest, the '83 Star Wars cabinet) with the things those
 machines could never afford: true hidden-line occlusion, bloom, arbitrary
-meshes from Blender, and a playable arena shooter that runs native or in a
-WebGPU browser tab at 1.3 MB.
+meshes from Blender, and a playable arena shooter —
+**[play it in your browser](https://chainsawqueen1.itch.io/vector3d-arena)** —
+that runs native or as a 1.3 MB WebGPU wasm.
 
 ![the arena](docs/arena.png)
 
@@ -15,8 +16,9 @@ on black.
 
 ## Play it
 
-**Browser** (Chrome/Edge, WebGPU): build with `tools/build_web.sh`, then
-`python3 -m http.server 8080 -d dist-web` — or grab the itch.io build.
+**Browser** (Chrome/Edge, WebGPU): **[play on itch.io](https://chainsawqueen1.itch.io/vector3d-arena)** —
+or build it yourself with `tools/build_web.sh` and
+`python3 -m http.server 8080 -d dist-web`.
 
 **Native**:
 
