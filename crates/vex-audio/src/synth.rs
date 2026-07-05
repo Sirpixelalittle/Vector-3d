@@ -54,6 +54,31 @@ fn sweep(
         .collect()
 }
 
+/// Geometric frequency sweep with a click-free attack: pitch dives fast
+/// then tails off, like a discharge — the movie-laser envelope. (The
+/// linear [`sweep`] reads as chiptune; this reads as sci-fi.)
+fn sweep_exp(
+    duration: f32,
+    f0: f32,
+    f1: f32,
+    decay: f32,
+    amp: f32,
+    shape: impl Fn(f32) -> f32,
+) -> Vec<f32> {
+    const ATTACK_SECONDS: f32 = 0.005;
+    let n = seconds(duration);
+    let mut phase = 0.0f32;
+    (0..n)
+        .map(|i| {
+            let t = i as f32 / n as f32;
+            let freq = f0 * (f1 / f0).powf(t);
+            phase = (phase + freq / SAMPLE_RATE as f32).fract();
+            let attack = (i as f32 / (ATTACK_SECONDS * SAMPLE_RATE as f32)).min(1.0);
+            shape(phase) * amp * attack * (-decay * t).exp()
+        })
+        .collect()
+}
+
 fn square(phase: f32) -> f32 {
     if phase < 0.5 { 1.0 } else { -1.0 }
 }
@@ -118,8 +143,13 @@ pub fn shot() -> StaticSoundData {
 }
 
 pub fn bolt_fire() -> StaticSoundData {
-    // Descending square zap — the classic enemy pew.
-    to_sound(sweep(0.18, 950.0, 260.0, 7.0, 0.4, square))
+    // Movie-laser "pyew": a fast exponential pitch dive on two slightly
+    // detuned sines — their beating is the metallic shimmer — plus a tiny
+    // trigger snap of noise at the front.
+    let body = sweep_exp(0.24, 2800.0, 220.0, 8.5, 0.34, sine);
+    let shimmer = sweep_exp(0.24, 2905.0, 236.0, 8.5, 0.20, sine);
+    let snap = burst(0.018, 40.0, 0.18);
+    to_sound(mix(mix(body, &shimmer), &snap))
 }
 
 pub fn bolt_impact() -> StaticSoundData {
