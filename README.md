@@ -1,0 +1,142 @@
+# vector3d
+
+A 3D engine that draws nothing but glowing lines — the look of vector CRTs
+(Battlezone, Tempest, the '83 Star Wars cabinet) with the things those
+machines could never afford: true hidden-line occlusion, bloom, arbitrary
+meshes from Blender, and a playable arena shooter that runs native or in a
+WebGPU browser tab at 1.3 MB.
+
+![the arena](docs/arena.png)
+
+Everything visible in that frame is a stroke: the walls, the enemies, the
+pistol, the muzzle flash, the medkit, the font. Surfaces exist only to
+*occlude* the lines behind them — they render into the depth buffer, black
+on black.
+
+## Play it
+
+**Browser** (Chrome/Edge, WebGPU): build with `tools/build_web.sh`, then
+`python3 -m http.server 8080 -d dist-web` — or grab the itch.io build.
+
+**Native**:
+
+```
+cargo run --release -p arena
+```
+
+Click to grab the mouse · `WASD` + `Space` · left-click fires · `R`
+restarts · `C` toggles CRT mode · `[` `]` / `-` `=` / `9` `0` tune
+glow / bloom / exposure live · `Esc` releases.
+
+Survive the waves. Shards swarm, sentinels shoot, and from wave 3 the
+shards shoot too — every wave their fire gets faster and harder. Pillars
+are real cover for both sides. Every 10 kills a medkit spawns at the
+center; kills come slower on later waves, so healing scales down with
+difficulty on its own.
+
+## How the rendering works
+
+![the corridor demo](docs/corridor.png)
+
+1. **Occluder pass** — all triangles, depth-only, pushed slightly away
+   from the camera by a tuned depth bias.
+2. **Line pass** — edges as screen-space quads (round caps, analytic AA,
+   constant pixel width like a real beam), depth-tested against pass 1.
+   Lines on a surface survive; lines behind it are eaten. Additive
+   blending makes crossings glow hotter, and endpoint caps read as CRT
+   beam-dwell dots for free.
+3. **Runtime silhouettes** — smooth-surface edges store both face normals;
+   an edge draws only when its faces disagree about facing the eye, so
+   curved objects get contours that follow the camera.
+4. **Phosphor post** — everything renders linear HDR, then a
+   threshold-less mip-chain bloom, exposure soft-clip, and optional CRT
+   barrel/chroma/vignette. Assets author only *relative* glow strengths;
+   the engine owns final brightness with a hue-preserving glow dial.
+
+Depth cueing (lines fade with distance), world-unit dashes, per-instance
+flicker, and an original angular stroke font round out the look.
+
+## Content pipeline
+
+```
+Blender (or tools/gen_*.py) ──glTF──▶ vex-convert ──.vec──▶ scene.ron ──▶ engine
+```
+
+`vex-convert` welds vertices, classifies every edge (boundary / crease /
+material-boundary → always drawn; smooth → runtime silhouette candidate;
+coplanar → dropped), and passes authored line art straight through —
+Blender "loose edges" export as glTF `LINES` and become drawn decoration,
+which is how floor spirals and wall panels are made. Material conventions:
+
+| In Blender                          | In the engine                     |
+|-------------------------------------|-----------------------------------|
+| emissive color (else base color)    | stroke color                      |
+| emissive strength (KHR extension)   | glow — how hard it blooms         |
+| material name contains `dash`       | dashed stroke (world-spaced)      |
+| material name contains `flicker`    | intensity flicker animation       |
+| loose edges / `LINES` primitives    | always-drawn line art             |
+
+The `.vec` format stores the welded vertices, classified edges (with
+normals for silhouettes), and the invisible occluder mesh in one small
+binary. The occluder mesh doubles as the collision mesh — walls that eat
+lines also stop the player, enemies, bullets, and line-of-sight.
+
+## Workspace
+
+| Crate / example      | What it is                                          |
+|----------------------|-----------------------------------------------------|
+| `crates/vex-core`    | geometry, `.vec` format, frustum, stroke font       |
+| `crates/vex-render`  | wgpu passes: occluders, lines, HDR bloom/CRT post   |
+| `crates/vex-engine`  | window shell (native + web), input, cameras, RON scenes, capsule collision + raycasts |
+| `crates/vex-convert` | glTF → `.vec` converter (CLI and library)           |
+| `crates/vex-audio`   | 3D spatial audio (kira); all SFX synthesized in code |
+| `examples/01-cube`   | minimal pipeline: lines on black, fly camera        |
+| `examples/02-viewer` | model viewer — drop in `.vec`/`.gltf`, hot-reloads on save |
+| `examples/03-corridor` | FPS walkthrough of the reference aesthetic        |
+| `examples/04-arena`  | the game                                            |
+
+Every example has a headless `--screenshot` mode (deterministic `--demo`
+simulation in the arena) — the project was verified throughout by
+rendering frames and looking at them.
+
+## Building
+
+Native needs Rust (edition 2024) and Vulkan-capable drivers:
+
+```
+cargo test --workspace          # 60+ unit tests
+cargo run --release -p arena    # or: cube · viewer · corridor
+```
+
+Regenerate assets (no Blender required — the demo content is generated):
+
+```
+python3 tools/gen_arena.py && python3 tools/gen_corridor.py
+cargo run -p vex-convert -- assets/arena/arena.gltf     # etc.
+```
+
+Web build needs the `wasm32-unknown-unknown` std (rustup target, or
+`rust-wasm` on Arch — **must match the `rust` package version exactly**)
+and `wasm-bindgen-cli` matching the version in `Cargo.lock`:
+
+```
+tools/build_web.sh              # → dist-web/, ready for any static host
+tools/package_demo.sh           # → native Linux tarball in dist/
+```
+
+## Provenance
+
+Designed and built over a handful of days as a human ↔ AI collaboration:
+direction, playtesting, and taste by [Sirpixelalot]; architecture and
+implementation driven through Claude (Anthropic) in a continuous session —
+including the design document ([DESIGN.md](DESIGN.md)), which was written
+before the first line of code and still matches what shipped, milestone
+by milestone.
+
+Suzanne test model © Blender Foundation, via
+[Khronos glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets)
+(see `assets/suzanne/README.md`). The sword and pistol are original
+Blender exports; everything else is generated by the scripts in `tools/`.
+
+No open-source license has been chosen yet — all rights reserved until
+one is added.
