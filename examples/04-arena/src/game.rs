@@ -41,6 +41,13 @@ const GATE_ANGLES_DEG: [f32; 4] = [0.0, 90.0, 180.0, 270.0];
 
 const SEPARATION_PUSH: f32 = 3.0;
 
+// --- health pack ---
+/// Every N kills, a pack spawns at the arena center. Kills come slower on
+/// later waves, so healing scales down naturally with difficulty.
+const KILLS_PER_PACK: u32 = 10;
+const HEAL_AMOUNT: f32 = 35.0;
+const PACK_PICKUP_RADIUS: f32 = 1.0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EnemyKind {
     Shard,
@@ -207,6 +214,23 @@ pub enum GameEvent {
     PlayerHit,
     WaveStarted(u32),
     GameOver,
+    HealthSpawned(Vec3),
+    HealthPicked,
+}
+
+/// The medkit hovering at the arena center, waiting to be claimed.
+#[derive(Debug, Clone, Copy)]
+pub struct HealthPack {
+    /// Ground position (the cross hovers above it).
+    pub pos: Vec3,
+    pub age: f32,
+}
+
+impl HealthPack {
+    /// Hover center for rendering and pickup chimes.
+    pub fn center(&self) -> Vec3 {
+        self.pos + Vec3::Y * (1.05 + (self.age * 2.2).sin() * 0.08)
+    }
 }
 
 pub struct Game {
@@ -222,6 +246,8 @@ pub struct Game {
     pub iframes: f32,
     /// Drain with `std::mem::take` each frame.
     pub events: Vec<GameEvent>,
+    pub health_pack: Option<HealthPack>,
+    kills_toward_pack: u32,
     recoil: f32,
     fire_cooldown: f32,
     spawn_queue: Vec<EnemyKind>,
@@ -244,6 +270,8 @@ impl Game {
             damage_flash: 0.0,
             iframes: 0.0,
             events: Vec::new(),
+            health_pack: None,
+            kills_toward_pack: 0,
             recoil: 0.0,
             fire_cooldown: 0.0,
             spawn_queue: Vec::new(),
@@ -265,6 +293,15 @@ impl Game {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn force_recoil(&mut self, amount: f32) {
         self.recoil = amount.clamp(0.0, 1.0);
+    }
+
+    /// Spawn the medkit immediately (headless screenshots; native only).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn force_health_pack(&mut self, age: f32) {
+        self.health_pack = Some(HealthPack {
+            pos: Vec3::ZERO,
+            age,
+        });
     }
 
     /// `muzzle` is the world-space point where the viewmodel's barrel tip
@@ -308,6 +345,7 @@ impl Game {
             self.try_fire(eye, aim, muzzle, soup);
         }
         self.update_enemies(dt, eye, soup);
+        self.update_health_pack(dt, eye);
 
         if matches!(self.phase, Phase::Fighting)
             && self.spawn_queue.is_empty()
@@ -421,6 +459,38 @@ impl Game {
             enemy.kind.color(),
             14,
         );
+
+        // Earn a medkit every KILLS_PER_PACK kills. Overkill banks toward
+        // the next one, so leaving a pack on the floor as a reserve is a
+        // real strategy — but only one exists at a time.
+        self.kills_toward_pack += 1;
+        if self.kills_toward_pack >= KILLS_PER_PACK && self.health_pack.is_none() {
+            self.kills_toward_pack -= KILLS_PER_PACK;
+            let pack = HealthPack {
+                pos: Vec3::ZERO,
+                age: 0.0,
+            };
+            self.events.push(GameEvent::HealthSpawned(pack.center()));
+            self.health_pack = Some(pack);
+        }
+    }
+
+    /// Age the pack and hand it to the player on contact — unless they are
+    /// already at full health, in which case it waits to be needed.
+    fn update_health_pack(&mut self, dt: f32, eye: Vec3) {
+        let Some(pack) = &mut self.health_pack else {
+            return;
+        };
+        pack.age += dt;
+        if self.hp >= PLAYER_MAX_HP {
+            return;
+        }
+        let player_ground = vec3(eye.x, 0.0, eye.z);
+        if (player_ground - pack.pos).length() < PACK_PICKUP_RADIUS {
+            self.hp = (self.hp + HEAL_AMOUNT).min(PLAYER_MAX_HP);
+            self.health_pack = None;
+            self.events.push(GameEvent::HealthPicked);
+        }
     }
 
     fn update_enemies(&mut self, dt: f32, eye: Vec3, soup: &TriangleSoup) {
@@ -939,6 +1009,76 @@ mod tests {
         game.enemies[0].pos = vec3(0.0, 0.0, -0.5);
         game.update(0.016, EYE, AIM, MUZ, false, &open_soup());
         assert_eq!(game.hp, after_first, "iframes block the second contact");
+    }
+
+    #[test]
+    fn ten_kills_spawn_a_pack_and_pickup_heals() {
+        let mut game = Game::new();
+        game.phase = Phase::Fighting;
+        game.kills_toward_pack = KILLS_PER_PACK - 1;
+        game.hp = 40.0;
+        // Fight away from the center so the spawn isn't instantly grabbed.
+        let away = vec3(0.0, 1.55, 8.0);
+        let mut shard = spawned(EnemyKind::Shard, vec3(0.0, 0.0, 6.0), 1);
+        shard.hp = 1.0;
+        game.enemies.push(shard);
+        game.update(0.016, away, AIM, MUZ, true, &open_soup());
+        let pack = game.health_pack.expect("pack spawned on the 10th kill");
+        assert_eq!(pack.pos, Vec3::ZERO);
+        assert!(
+            game.events
+                .iter()
+                .any(|e| matches!(e, GameEvent::HealthSpawned(_)))
+        );
+
+        // Walk to the center: heals and consumes.
+        game.events.clear();
+        game.update(0.016, EYE, AIM, MUZ, false, &open_soup());
+        assert!(game.health_pack.is_none(), "consumed");
+        assert!((game.hp - 75.0).abs() < 1e-3, "40 + 35 heal");
+        assert!(game.events.contains(&GameEvent::HealthPicked));
+    }
+
+    #[test]
+    fn pack_waits_when_player_is_full() {
+        let mut game = Game::new();
+        game.phase = Phase::Fighting;
+        game.health_pack = Some(HealthPack {
+            pos: Vec3::ZERO,
+            age: 0.0,
+        });
+        // Standing on it at full health: it stays banked.
+        game.update(0.016, EYE, AIM, MUZ, false, &open_soup());
+        assert!(game.health_pack.is_some());
+        assert_eq!(game.hp, PLAYER_MAX_HP);
+        // Take damage, step again: now it heals.
+        game.hp = 60.0;
+        game.update(0.016, EYE, AIM, MUZ, false, &open_soup());
+        assert!(game.health_pack.is_none());
+        assert!((game.hp - 95.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn only_one_pack_at_a_time_and_overkill_banks() {
+        let mut game = Game::new();
+        game.phase = Phase::Fighting;
+        game.health_pack = Some(HealthPack {
+            pos: vec3(5.0, 0.0, 5.0), // away from the player
+            age: 0.0,
+        });
+        game.kills_toward_pack = KILLS_PER_PACK - 1;
+        let mut shard = spawned(EnemyKind::Shard, vec3(0.0, 0.0, -2.0), 1);
+        shard.hp = 1.0;
+        game.enemies.push(shard);
+        game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
+        // Still just the one pack; the earned spawn is banked in the counter.
+        assert_eq!(game.kills_toward_pack, KILLS_PER_PACK);
+        assert!(
+            !game
+                .events
+                .iter()
+                .any(|e| matches!(e, GameEvent::HealthSpawned(_)))
+        );
     }
 
     #[test]

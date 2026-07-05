@@ -179,6 +179,23 @@ pub fn wave_start() -> StaticSoundData {
     to_sound(append(a, append(silence(0.05), b)))
 }
 
+pub fn health_spawn() -> StaticSoundData {
+    // Gentle two-note bell: "a medkit is up."
+    let a = sweep_exp(0.14, 660.0, 655.0, 5.0, 0.32, sine);
+    let b = sweep_exp(0.22, 990.0, 982.0, 5.0, 0.30, sine);
+    to_sound(append(a, append(silence(0.02), b)))
+}
+
+pub fn health_pickup() -> StaticSoundData {
+    // Classic ascending power-up triad with a sparkle on top.
+    let mut out = Vec::new();
+    for freq in [523.0, 659.0, 784.0] {
+        out = append(out, sweep(0.06, freq, freq, 3.0, 0.42, square));
+    }
+    let sparkle = sweep_exp(0.16, 1046.0, 1570.0, 6.0, 0.28, sine);
+    to_sound(append(out, sparkle))
+}
+
 pub fn game_over() -> StaticSoundData {
     // Three falling notes into the void.
     let mut out = Vec::new();
@@ -211,6 +228,8 @@ mod tests {
             ("player_hit", player_hit()),
             ("wave_start", wave_start()),
             ("game_over", game_over()),
+            ("health_spawn", health_spawn()),
+            ("health_pickup", health_pickup()),
         ] {
             assert!(!sound.frames.is_empty(), "{name} is empty");
             let p = peak(&sound);

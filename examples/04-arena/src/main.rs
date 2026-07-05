@@ -31,6 +31,8 @@ const SCENE_PATH: &str = "assets/arena/scene.ron";
 const SHARD_PATH: &str = "assets/arena/shard.vec";
 #[cfg(not(target_arch = "wasm32"))]
 const SENTINEL_PATH: &str = "assets/arena/sentinel.vec";
+#[cfg(not(target_arch = "wasm32"))]
+const HEALTHPACK_PATH: &str = "assets/arena/healthpack.vec";
 
 /// Asset root: next to the executable for shipped builds (the packaged
 /// tarball puts `assets/` beside the binary), falling back to the working
@@ -53,6 +55,7 @@ mod embedded {
     pub const ARENA: &[u8] = include_bytes!("../../../assets/arena/arena.vec");
     pub const SHARD: &[u8] = include_bytes!("../../../assets/arena/shard.vec");
     pub const SENTINEL: &[u8] = include_bytes!("../../../assets/arena/sentinel.vec");
+    pub const HEALTHPACK: &[u8] = include_bytes!("../../../assets/arena/healthpack.vec");
     pub const PISTOL: &[u8] = include_bytes!("../../../assets/pistol.vec");
 }
 const LINE_WIDTH_PX: f32 = 1.6;
@@ -169,12 +172,13 @@ fn muzzle_flash(recoil: f32) -> Vec<Segment> {
 
 // --------------------------------------------------------------- enemies --
 
-struct EnemyModels {
+struct GameModels {
     shard: VecModel,
     sentinel: VecModel,
+    healthpack: VecModel,
 }
 
-impl EnemyModels {
+impl GameModels {
     fn get(&self, kind: EnemyKind) -> &VecModel {
         match kind {
             EnemyKind::Shard => &self.shard,
@@ -183,16 +187,50 @@ impl EnemyModels {
     }
 }
 
-/// Enemies, spawn telegraphs, and particles as this frame's dynamic
-/// geometry (world-space segments + occluder soup).
+/// Enemies, spawn telegraphs, pickups and particles as this frame's
+/// dynamic geometry (world-space segments + occluder soup).
 fn build_dynamic(
-    models: &EnemyModels,
+    models: &GameModels,
     game: &Game,
     time: f32,
 ) -> (Vec<Segment>, Vec<Vec3>, Vec<u32>) {
     let mut segments = Vec::new();
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
+
+    // The medkit: spinning cross hovering over a pulsing claim ring.
+    if let Some(pack) = &game.health_pack {
+        let pop = smoothstep((pack.age / 0.35).min(1.0));
+        let transform = Mat4::from_translation(pack.center())
+            * Mat4::from_rotation_y(pack.age * 0.9)
+            * Mat4::from_scale(Vec3::splat(pop));
+        segments.extend(
+            models
+                .healthpack
+                .edge_segments(EdgeKind::Always, 0.7 + 0.3 * (pack.age * 2.2).sin())
+                .into_iter()
+                .map(|s| Segment {
+                    a: transform.transform_point3(s.a),
+                    b: transform.transform_point3(s.b),
+                    ..s
+                }),
+        );
+        let base = vertices.len() as u32;
+        vertices.extend(
+            models
+                .healthpack
+                .vertices
+                .iter()
+                .map(|&v| transform.transform_point3(v)),
+        );
+        indices.extend(models.healthpack.occluder_indices.iter().map(|&i| i + base));
+        let ring_radius = 0.9 + (pack.age * 2.0).sin() * 0.12;
+        segments.extend(ring_segments(
+            pack.pos + Vec3::Y * 0.02,
+            ring_radius,
+            Vec4::new(1.0, 0.10, 0.08, 0.5 * pop),
+        ));
+    }
 
     for enemy in &game.enemies {
         let progress = enemy.spawn_progress();
@@ -421,7 +459,7 @@ struct ArenaApp {
     soup: TriangleSoup,
     player: FpsController,
     weapon: Option<Weapon>,
-    enemy_models: EnemyModels,
+    models: GameModels,
     game: Game,
     renderers: Option<Renderers>,
     world_uploaded: bool,
@@ -435,19 +473,21 @@ struct ArenaApp {
 
 impl ArenaApp {
     #[cfg(not(target_arch = "wasm32"))]
-    fn load_content() -> Result<(BakedScene, EnemyModels)> {
+    fn load_content() -> Result<(BakedScene, GameModels)> {
         let root = asset_root();
         let scene = vex_engine::load_scene(&root.join(SCENE_PATH))
             .with_context(|| format!("load scene {SCENE_PATH}"))?;
-        let enemy_models = EnemyModels {
+        let models = GameModels {
             shard: VecModel::load(&root.join(SHARD_PATH)).context("load shard.vec")?,
             sentinel: VecModel::load(&root.join(SENTINEL_PATH)).context("load sentinel.vec")?,
+            healthpack: VecModel::load(&root.join(HEALTHPACK_PATH))
+                .context("load healthpack.vec")?,
         };
-        Ok((scene, enemy_models))
+        Ok((scene, models))
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn load_content() -> Result<(BakedScene, EnemyModels)> {
+    fn load_content() -> Result<(BakedScene, GameModels)> {
         let scene = vex_engine::load_scene_from_str(embedded::SCENE, |reference| {
             Ok(match reference {
                 "arena.vec" => VecModel::load_from(embedded::ARENA)?,
@@ -455,15 +495,16 @@ impl ArenaApp {
                 other => anyhow::bail!("no embedded model for '{other}'"),
             })
         })?;
-        let enemy_models = EnemyModels {
+        let models = GameModels {
             shard: VecModel::load_from(embedded::SHARD).context("shard.vec")?,
             sentinel: VecModel::load_from(embedded::SENTINEL).context("sentinel.vec")?,
+            healthpack: VecModel::load_from(embedded::HEALTHPACK).context("healthpack.vec")?,
         };
-        Ok((scene, enemy_models))
+        Ok((scene, models))
     }
 
     fn new() -> Result<Self> {
-        let (scene, enemy_models) = Self::load_content()?;
+        let (scene, models) = Self::load_content()?;
         let soup = TriangleSoup::new(
             &scene.occluder_vertices,
             &scene.occluder_indices,
@@ -482,7 +523,7 @@ impl ArenaApp {
             soup,
             player,
             weapon,
-            enemy_models,
+            models,
             game: Game::new(),
             renderers: None,
             world_uploaded: false,
@@ -519,6 +560,8 @@ impl ArenaApp {
                 GameEvent::PlayerHit => audio.play(Sfx::PlayerHit),
                 GameEvent::WaveStarted(_) => audio.play(Sfx::WaveStart),
                 GameEvent::GameOver => audio.play(Sfx::GameOver),
+                GameEvent::HealthSpawned(at) => audio.play_at(Sfx::HealthSpawn, at),
+                GameEvent::HealthPicked => audio.play(Sfx::HealthPickup),
             }
         }
     }
@@ -599,7 +642,7 @@ impl ArenaApp {
         }
 
         let (dynamic_segments, dynamic_vertices, dynamic_indices) =
-            build_dynamic(&self.enemy_models, &self.game, self.time);
+            build_dynamic(&self.models, &self.game, self.time);
         renderers.dynamic_lines.set_segments(
             &frame.gpu.device,
             &frame.gpu.queue,
@@ -875,6 +918,10 @@ fn screenshot(out: &Path, args: &[String]) -> Result<()> {
     if let Some(recoil) = flag_value(args, "--recoil") {
         let t: f32 = recoil.parse().context("--recoil expects 0..1")?;
         app.game.force_recoil(t);
+    }
+    if let Some(pack) = flag_value(args, "--pack") {
+        let age: f32 = pack.parse().context("--pack expects an age in seconds")?;
+        app.game.force_health_pack(age);
     }
 
     let gpu = Gpu::headless()?;

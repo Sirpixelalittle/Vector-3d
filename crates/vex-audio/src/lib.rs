@@ -30,6 +30,8 @@ pub enum Sfx {
     PlayerHit,
     WaveStart,
     GameOver,
+    HealthSpawn,
+    HealthPickup,
 }
 
 pub struct AudioEngine {
@@ -46,6 +48,8 @@ struct Bank {
     player_hit: StaticSoundData,
     wave_start: StaticSoundData,
     game_over: StaticSoundData,
+    health_spawn: StaticSoundData,
+    health_pickup: StaticSoundData,
 }
 
 impl Bank {
@@ -58,6 +62,8 @@ impl Bank {
             Sfx::PlayerHit => &self.player_hit,
             Sfx::WaveStart => &self.wave_start,
             Sfx::GameOver => &self.game_over,
+            Sfx::HealthSpawn => &self.health_spawn,
+            Sfx::HealthPickup => &self.health_pickup,
         }
     }
 }
@@ -81,6 +87,8 @@ impl AudioEngine {
                 player_hit: synth::player_hit(),
                 wave_start: synth::wave_start(),
                 game_over: synth::game_over(),
+                health_spawn: synth::health_spawn(),
+                health_pickup: synth::health_pickup(),
             },
         })
     }

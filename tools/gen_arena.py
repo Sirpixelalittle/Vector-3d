@@ -196,8 +196,40 @@ def make_sentinel():
     g.write(OUT_DIR / "sentinel.gltf")
 
 
+
+
+def make_healthpack():
+    """Retro medkit: a glowing red cross prism. Built lazily from five
+    boxes of duplicated quads -- the converter's welding merges the seams
+    and its coplanar-edge drop erases the internal borders, leaving only
+    the plus outline. The pipeline is the mesh cleanup."""
+    g = GltfBuilder()
+    red = g.material("healthpack", emissive=[1.0, 0.10, 0.08], emissive_strength=2.2)
+    s, r, d = 0.11, 0.33, 0.09  # arm half-width, reach, half-depth
+    rects = [
+        (-s, -s, s, s),   # hub
+        (-r, -s, -s, s),  # left arm
+        (s, -s, r, s),    # right arm
+        (-s, s, s, r),    # top arm
+        (-s, -r, s, -s),  # bottom arm
+    ]
+    pts, tris = [], []
+    for (x0, y0, x1, y1) in rects:
+        tris += quad(pts, (x0, y0, d), (x1, y0, d), (x1, y1, d), (x0, y1, d))
+        tris += quad(pts, (x1, y0, -d), (x0, y0, -d), (x0, y1, -d), (x1, y1, -d))
+    outline = [
+        (-s, -r), (s, -r), (s, -s), (r, -s), (r, s), (s, s),
+        (s, r), (-s, r), (-s, s), (-r, s), (-r, -s), (-s, -s),
+    ]
+    for i in range(len(outline)):
+        (x0, y0), (x1, y1) = outline[i], outline[(i + 1) % len(outline)]
+        tris += quad(pts, (x0, y0, -d), (x1, y1, -d), (x1, y1, d), (x0, y0, d))
+    g.mesh("healthpack", [g.primitive(pts, tris, red)])
+    g.write(OUT_DIR / "healthpack.gltf")
+
 if __name__ == "__main__":
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     make_arena()
     make_shard()
     make_sentinel()
+    make_healthpack()
