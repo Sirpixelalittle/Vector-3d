@@ -18,6 +18,10 @@ pub struct FlyCamera {
     pub fov_y: f32,
     pub speed: f32,
     pub sensitivity: f32,
+    /// When set, WASD moves parallel to the ground regardless of pitch
+    /// (editor-style: only Space/Ctrl change altitude). Off by default:
+    /// fly-through cameras feel better moving along the look direction.
+    pub planar_movement: bool,
 }
 
 impl FlyCamera {
@@ -29,6 +33,17 @@ impl FlyCamera {
             fov_y: 70f32.to_radians(),
             speed: 4.0,
             sensitivity: 0.0022,
+            planar_movement: false,
+        }
+    }
+
+    /// Forward/right basis used for WASD, honoring `planar_movement`.
+    fn movement_basis(&self) -> (Vec3, Vec3) {
+        if self.planar_movement {
+            let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z).normalize_or_zero();
+            (flat(self.forward()), flat(self.right()))
+        } else {
+            (self.forward(), self.right())
         }
     }
 
@@ -51,18 +66,19 @@ impl FlyCamera {
             self.pitch = (self.pitch - look.y).clamp(-PITCH_LIMIT, PITCH_LIMIT);
         }
 
+        let (forward, right) = self.movement_basis();
         let mut wish = Vec3::ZERO;
         if input.is_down(KeyCode::KeyW) {
-            wish += self.forward();
+            wish += forward;
         }
         if input.is_down(KeyCode::KeyS) {
-            wish -= self.forward();
+            wish -= forward;
         }
         if input.is_down(KeyCode::KeyD) {
-            wish += self.right();
+            wish += right;
         }
         if input.is_down(KeyCode::KeyA) {
-            wish -= self.right();
+            wish -= right;
         }
         if input.is_down(KeyCode::Space) {
             wish += Vec3::Y;
@@ -93,6 +109,18 @@ impl FlyCamera {
 mod tests {
     use super::*;
     use glam::{Vec4, vec3};
+
+    #[test]
+    fn planar_movement_ignores_pitch() {
+        let mut camera = FlyCamera::new(Vec3::ZERO, 0.3, -0.9);
+        let (fwd, _) = camera.movement_basis();
+        assert!(fwd.y < -0.5, "look-direction flight descends when pitched");
+        camera.planar_movement = true;
+        let (fwd, right) = camera.movement_basis();
+        assert_eq!(fwd.y, 0.0, "planar forward stays level");
+        assert!((fwd.length() - 1.0).abs() < 1e-5, "still full speed");
+        assert!(right.y.abs() < 1e-6, "right stays level");
+    }
 
     #[test]
     fn zero_yaw_looks_down_negative_z() {

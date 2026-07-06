@@ -147,6 +147,9 @@ impl EditorApp {
             cam: {
                 let mut cam = FlyCamera::new(vec3(0.0, 3.0, 12.0), 0.0, -0.2);
                 cam.speed = 8.0;
+                // Editors want level WASD: pitch aims the ghost, it must
+                // not steer your altitude. Space/Ctrl fly up/down.
+                cam.planar_movement = true;
                 cam
             },
             post_settings,
