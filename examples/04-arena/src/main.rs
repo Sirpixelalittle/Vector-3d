@@ -64,6 +64,11 @@ const COLLISION_CELL: f32 = 2.0;
 const WEAPON_FOV_DEG: f32 = 55.0;
 /// Longest-axis length of the pistol viewmodel, in view units.
 const WEAPON_LENGTH: f32 = 0.52;
+/// The pistol's materials aren't emissive, so lift its stroke intensity
+/// into HDR slightly — a faint phosphor halo that keeps the viewmodel
+/// readable against busy scenes. Runs through the scene glow dial like
+/// everything else.
+const WEAPON_GLOW: f32 = 1.35;
 
 // Reorient the lying-flat pistol (model axes: Z = barrel, X = gun-vertical,
 // Y = thickness) into a viewmodel frame — barrel forward (−Z), grip down
@@ -118,7 +123,7 @@ impl Weapon {
         let placement = self.placement(bob_phase, recoil);
         let mut segments: Vec<Segment> = self
             .model
-            .edge_segments(EdgeKind::Always, 1.0)
+            .edge_segments(EdgeKind::Always, WEAPON_GLOW)
             .into_iter()
             .map(|s| Segment {
                 a: placement.transform_point3(s.a),
@@ -126,7 +131,10 @@ impl Weapon {
                 ..s
             })
             .collect();
-        segments.extend(self.model.silhouette_segments(placement, Vec3::ZERO, 1.0));
+        segments.extend(
+            self.model
+                .silhouette_segments(placement, Vec3::ZERO, WEAPON_GLOW),
+        );
         let vertices: Vec<Vec3> = self
             .model
             .vertices
