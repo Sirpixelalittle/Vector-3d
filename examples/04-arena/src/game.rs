@@ -36,7 +36,10 @@ const INTERMISSION_SECONDS: f32 = 3.0;
 const SPAWN_INTERVAL: f32 = 0.7;
 /// Seconds an enemy spends materializing (no collision, ghost render).
 pub const SPAWN_RAMP: f32 = 0.8;
-const SPAWN_RADIUS: f32 = 24.0;
+/// Spawn ring radius. The arena's octagon wall faces sit at ~24.0 from
+/// the center — keep a full body-width of clearance so nobody is born
+/// embedded in a wall.
+const SPAWN_RADIUS: f32 = 22.5;
 const GATE_ANGLES_DEG: [f32; 4] = [0.0, 90.0, 180.0, 270.0];
 
 const SEPARATION_PUSH: f32 = 3.0;
@@ -570,19 +573,35 @@ impl Game {
         }
         self.bolts.extend(new_bolts);
 
-        // Pairwise separation so enemies don't merge into one blob.
+        // Pairwise separation so enemies don't merge into one blob. The
+        // pushes are applied THROUGH the collision slide, never as raw
+        // teleports — a raw shove could put an enemy on the far side of a
+        // wall, and the slide's came-from tie-break would then dutifully
+        // keep it outside the arena forever (a real soft-lock we shipped).
+        let mut pushes = vec![Vec3::ZERO; self.enemies.len()];
         for a in 0..self.enemies.len() {
             for b in (a + 1)..self.enemies.len() {
-                let (left, right) = self.enemies.split_at_mut(b);
-                let (ea, eb) = (&mut left[a], &mut right[0]);
+                let (ea, eb) = (&self.enemies[a], &self.enemies[b]);
                 let min_dist = ea.kind.radius() + eb.kind.radius();
                 let delta = eb.pos - ea.pos;
                 let dist = delta.length();
                 if dist > 1e-4 && dist < min_dist {
                     let push = delta / dist * (min_dist - dist) * 0.5 * SEPARATION_PUSH * dt;
-                    ea.pos -= push;
-                    eb.pos += push;
+                    pushes[a] -= push;
+                    pushes[b] += push;
                 }
+            }
+        }
+        for (enemy, push) in self.enemies.iter_mut().zip(pushes) {
+            if push != Vec3::ZERO {
+                let slid = slide_capsule(
+                    soup,
+                    enemy.pos,
+                    enemy.kind.radius(),
+                    enemy.kind.capsule_height(),
+                    push,
+                );
+                enemy.pos = vec3(slid.position.x, 0.0, slid.position.z);
             }
         }
     }
@@ -1088,6 +1107,83 @@ mod tests {
         game.update(0.016, EYE, AIM, MUZ, false, &open_soup());
         assert_eq!(game.wave, 2);
         assert!(matches!(game.phase, Phase::Intermission { .. }));
+    }
+
+    /// Arena-shaped wall ring (matches gen_arena.py dimensions), so spawn
+    /// positions interact with walls exactly like the real level.
+    fn octagon_soup() -> TriangleSoup {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let ring: Vec<Vec3> = (0..8)
+            .map(|i| {
+                let a = (22.5f32 + 45.0 * i as f32).to_radians();
+                vec3(26.0 * a.cos(), 0.0, 26.0 * a.sin())
+            })
+            .collect();
+        for i in 0..8 {
+            let (a, b) = (ring[i], ring[(i + 1) % 8]);
+            let base = vertices.len() as u32;
+            vertices.extend([a, b, b + Vec3::Y * 3.5, a + Vec3::Y * 3.5]);
+            indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+        TriangleSoup::new(&vertices, &indices, 2.0)
+    }
+
+    /// Soak: an immortal, auto-aiming player clears waves for ~15 sim
+    /// minutes in both an open and a walled arena, with uneven frame
+    /// times. Catches wave soft-locks (banner shown, nothing spawns) and
+    /// stuck-enemy stalls that only appear across many wave transitions.
+    #[test]
+    fn waves_never_soft_lock() {
+        for (name, soup) in [("open", open_soup()), ("octagon", octagon_soup())] {
+            let dts = [1.0 / 60.0, 1.0 / 144.0, 1.0 / 30.0, 0.021];
+            let eye = EYE;
+            let mut game = Game::new();
+            let mut last_wave = game.wave;
+            let mut stall = 0.0f32;
+            for frame in 0..55_000u32 {
+                let dt = dts[(frame % 4) as usize];
+                let (aim, attack) = game
+                    .enemies
+                    .iter()
+                    .find(|e| e.spawn_progress() >= 1.0)
+                    .map(|e| ((e.center() - eye).normalize_or_zero(), true))
+                    .unwrap_or((AIM, false));
+                game.update(dt, eye, aim, MUZ, attack, &soup);
+                game.events.clear();
+                game.hp = PLAYER_MAX_HP; // immortal
+
+                assert!(
+                    !(matches!(game.phase, Phase::Fighting)
+                        && game.spawn_queue.is_empty()
+                        && game.enemies.is_empty()),
+                    "[{name}] fighting-with-nothing at frame {frame}, wave {}",
+                    game.wave
+                );
+                if game.wave != last_wave {
+                    last_wave = game.wave;
+                    stall = 0.0;
+                }
+                stall += dt;
+                assert!(
+                    stall < 120.0,
+                    "[{name}] no wave progress for 2 sim-minutes: frame {frame}, \
+                     wave {}, phase {:?}, queue {}, enemies {} (spawned {})",
+                    game.wave,
+                    game.phase,
+                    game.spawn_queue.len(),
+                    game.enemies.len(),
+                    game.enemies
+                        .iter()
+                        .filter(|e| e.spawn_progress() >= 1.0)
+                        .count(),
+                );
+            }
+            assert!(
+                last_wave >= 5,
+                "[{name}] expected to clear several waves, reached {last_wave}"
+            );
+        }
     }
 
     #[test]
