@@ -296,6 +296,7 @@ impl EditorApp {
             let i = ShapeKind::ALL.iter().position(|&k| k == self.ghost.kind).unwrap_or(0);
             self.ghost.kind = ShapeKind::ALL[(i + 1) % ShapeKind::ALL.len()];
         }
+        let cylinder = self.ghost.kind == ShapeKind::Cylinder;
         if input.is_just_pressed(KeyCode::KeyR) {
             let step = if shift { -YAW_SNAP } else { YAW_SNAP };
             self.ghost.yaw = (self.ghost.yaw + step).rem_euclid(360.0);
@@ -320,11 +321,17 @@ impl EditorApp {
         if input.is_just_pressed(KeyCode::KeyH) {
             size_axis(1, -SIZE_STEP, &mut self.ghost);
         }
+        // Cylinders stay circular in the editor: depth keys steer the
+        // diameter too, and the footprint is re-squared below. (Hand-
+        // edited RON may still author elliptical prisms deliberately.)
         if input.is_just_pressed(KeyCode::KeyU) {
-            size_axis(2, SIZE_STEP, &mut self.ghost);
+            size_axis(if cylinder { 0 } else { 2 }, SIZE_STEP, &mut self.ghost);
         }
         if input.is_just_pressed(KeyCode::KeyJ) {
-            size_axis(2, -SIZE_STEP, &mut self.ghost);
+            size_axis(if cylinder { 0 } else { 2 }, -SIZE_STEP, &mut self.ghost);
+        }
+        if cylinder {
+            self.ghost.size.2 = self.ghost.size.0;
         }
         if input.is_just_pressed(KeyCode::Comma) {
             self.ghost.hue = (self.ghost.hue - HUE_STEP).rem_euclid(360.0);

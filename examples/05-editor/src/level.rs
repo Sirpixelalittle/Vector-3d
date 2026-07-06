@@ -170,8 +170,10 @@ fn local_triangles(kind: ShapeKind, size: Vec3) -> Vec<Vec3> {
     match kind {
         ShapeKind::Box => boxy(&mut tris, vec3(-hx, 0.0, -hz), vec3(hx, sy, hz)),
         ShapeKind::Cylinder => {
-            // Elliptical prism: sx/sz are the footprint diameters. The
-            // classifier turns the smooth sides into runtime silhouettes.
+            // Footprint diameters from sx/sz. The editor keeps them equal
+            // (true circles); elliptical prisms are possible from hand-
+            // edited RON. The classifier turns the smooth sides into
+            // runtime silhouettes.
             const N: usize = 12;
             let ring: Vec<(f32, f32)> = (0..N)
                 .map(|i| {
