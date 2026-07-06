@@ -83,6 +83,19 @@ normals for silhouettes), and the invisible occluder mesh in one small
 binary. The occluder mesh doubles as the collision mesh — walls that eat
 lines also stop the player, enemies, bullets, and line-of-sight.
 
+### Level editor
+
+![the level editor](docs/editor.png)
+
+For blocking out playable spaces without Blender, `cargo run -p editor --
+mylevel.ron` opens an in-engine editor: fly around, place boxes /
+cylinders / wedges / doorframes with live hue, saturation and glow
+controls, and watch it through the real renderer — the preview *is* the
+game's pipeline, bloom and all. `F5` saves the editable RON document,
+`F6` exports a `.vec` through the same converter machinery as Blender
+content, so exported levels get silhouettes, clean welded outlines, and
+collision for free. `F1` shows the full key reference in-app.
+
 ## Workspace
 
 | Crate / example      | What it is                                          |
@@ -96,6 +109,7 @@ lines also stop the player, enemies, bullets, and line-of-sight.
 | `examples/02-viewer` | model viewer — drop in `.vec`/`.gltf`, hot-reloads on save |
 | `examples/03-corridor` | FPS walkthrough of the reference aesthetic        |
 | `examples/04-arena`  | the game                                            |
+| `examples/05-editor` | in-engine level editor — primitives with hue/glow dials, exports `.vec` |
 
 Every example has a headless `--screenshot` mode (deterministic `--demo`
 simulation in the arena) — the project was verified throughout by

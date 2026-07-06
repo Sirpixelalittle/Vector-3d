@@ -1,0 +1,18 @@
+Level(
+    post: (exposure: 1.0, bloom_strength: 0.14, crt: 0.0, glow: 0.5),
+    shapes: [
+        // Floor slab and a back wall.
+        Shape(kind: Box, pos: (0.0, 0.0, 0.0), size: (24.0, 0.25, 18.0), yaw: 0.0, hue: 130.0, sat: 0.9, glow: 0.6),
+        Shape(kind: Box, pos: (0.0, 0.25, -8.5), size: (24.0, 4.0, 0.5), yaw: 0.0, hue: 130.0, sat: 0.8, glow: 0.8),
+        // A doorway frame in the wall line.
+        Shape(kind: Frame, pos: (-4.0, 0.25, -8.4), size: (4.0, 3.5, 0.8), yaw: 0.0, hue: 190.0, sat: 0.9, glow: 2.0),
+        // Pillars, one hot magenta.
+        Shape(kind: Cylinder, pos: (6.0, 0.25, -3.0), size: (1.6, 3.5, 1.6), yaw: 0.0, hue: 25.0, sat: 1.0, glow: 1.4),
+        Shape(kind: Cylinder, pos: (-8.0, 0.25, -2.0), size: (1.6, 3.5, 1.6), yaw: 0.0, hue: 310.0, sat: 1.0, glow: 2.6),
+        // A ramp up to a small platform.
+        Shape(kind: Wedge, pos: (4.5, 0.25, 4.0), size: (3.0, 1.5, 5.0), yaw: 0.0, hue: 55.0, sat: 0.9, glow: 1.0),
+        Shape(kind: Box, pos: (4.5, 0.25, 8.25), size: (3.0, 1.5, 3.5), yaw: 0.0, hue: 55.0, sat: 0.7, glow: 0.7),
+        // Rotated accent block, low saturation (near-white).
+        Shape(kind: Box, pos: (-5.0, 0.25, 3.0), size: (2.0, 2.0, 2.0), yaw: 30.0, hue: 0.0, sat: 0.25, glow: 1.2),
+    ],
+)

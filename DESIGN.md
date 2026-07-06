@@ -318,6 +318,17 @@ audio files (era-correct, and free bytes on the web build). Games emit
 first captured click, which doubles as the browser autoplay gesture.
 Works native and wasm.
 
+**M8 — Level editor** ✅ *2026-07-06*
+`examples/05-editor`: in-engine block-out tool. Fly camera, grid-snapped
+ghost preview, four primitives (box / cylinder / wedge / doorframe) with
+stepped hue / saturation / glow dials, aim-to-delete with AABB highlight,
+undo, RON save (`F5`) and `.vec` export (`F6`) through
+`vex_convert::build_model` — the same weld/classify pipeline as Blender
+content, so exports get silhouettes, welded composite outlines, and
+collision-ready occluders. Preview renders through the real pass chain
+(HDR bloom, glow dial, CRT), palette capped at 255 combos with graceful
+refusal. Blender stays the hero-asset tool; this is for spaces.
+
 **M6+ — Stretch**
 SVG frame export (posters/marketing shots), WebGPU browser demo,
 oscilloscope/ILDA laser output (a *true* vector display backend — the

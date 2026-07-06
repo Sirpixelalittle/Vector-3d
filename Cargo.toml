@@ -10,6 +10,7 @@ members = [
     "examples/02-viewer",
     "examples/03-corridor",
     "examples/04-arena",
+    "examples/05-editor",
 ]
 
 [workspace.package]
