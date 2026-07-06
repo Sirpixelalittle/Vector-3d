@@ -810,11 +810,17 @@ impl App for ArenaApp {
         {
             self.game.restart();
             self.player.pos = self.scene.player_spawn;
+            self.player.yaw = self.scene.player_yaw;
+            self.player.pitch = 0.0;
         }
         if input.is_captured() {
             self.ensure_audio();
         }
-        self.player.update(dt, input, &self.soup);
+        // Death freezes the player with the rest of the world — the game
+        // over screen is a freeze-frame, not a ghost tour.
+        if !matches!(self.game.phase, Phase::GameOver) {
+            self.player.update(dt, input, &self.soup);
+        }
         let attack = input.is_captured() && input.is_mouse_just_pressed(MouseButton::Left);
         let (eye, aim) = (self.player.eye(), self.aim());
         self.game
