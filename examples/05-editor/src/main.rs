@@ -520,7 +520,7 @@ impl EditorApp {
             help("SCROLL DIST   Q/E BASE HEIGHT", &mut out, &mut hy);
             help("F5 SAVE   F6 EXPORT VEC   F2 GRID   F1 HELP", &mut out, &mut hy);
             help("[ ] GLOW  - = BLOOM  9 0 EXPOSURE  C CRT", &mut out, &mut hy);
-            help("WASD + SPACE/CTRL FLY   SHIFT FAST", &mut out, &mut hy);
+            help("WASD FLY   SPACE/CTRL UP/DOWN   ARROWS TURN", &mut out, &mut hy);
         }
         out
     }

@@ -22,6 +22,9 @@ pub struct FlyCamera {
     /// (editor-style: only Space/Ctrl change altitude). Off by default:
     /// fly-through cameras feel better moving along the look direction.
     pub planar_movement: bool,
+    /// Arrow-key turn rate in radians/second. Keyboard turning works
+    /// even when the mouse isn't captured — handy in editors.
+    pub turn_speed: f32,
 }
 
 impl FlyCamera {
@@ -34,6 +37,7 @@ impl FlyCamera {
             speed: 4.0,
             sensitivity: 0.0022,
             planar_movement: false,
+            turn_speed: 1.7,
         }
     }
 
@@ -64,6 +68,19 @@ impl FlyCamera {
             let look = input.mouse_delta() * self.sensitivity;
             self.yaw -= look.x;
             self.pitch = (self.pitch - look.y).clamp(-PITCH_LIMIT, PITCH_LIMIT);
+        }
+        let turn = self.turn_speed * dt;
+        if input.is_down(KeyCode::ArrowLeft) {
+            self.yaw += turn;
+        }
+        if input.is_down(KeyCode::ArrowRight) {
+            self.yaw -= turn;
+        }
+        if input.is_down(KeyCode::ArrowUp) {
+            self.pitch = (self.pitch + turn).clamp(-PITCH_LIMIT, PITCH_LIMIT);
+        }
+        if input.is_down(KeyCode::ArrowDown) {
+            self.pitch = (self.pitch - turn).clamp(-PITCH_LIMIT, PITCH_LIMIT);
         }
 
         let (forward, right) = self.movement_basis();
