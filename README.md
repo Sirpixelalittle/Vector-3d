@@ -155,6 +155,13 @@ tools/build_web.sh              # → dist-web/, ready for any static host
 tools/package_demo.sh           # → native Linux tarball in dist/
 ```
 
+## For AI agents
+
+`.claude/skills/vector3d-engine/SKILL.md` is the working agreement for
+AI tools touching this repo: the verify loop, which contracts are
+load-bearing, and the escalation ladder for when something fights back.
+Humans may also enjoy it.
+
 ## Provenance
 
 Designed and built over a handful of days as a human ↔ AI collaboration:
