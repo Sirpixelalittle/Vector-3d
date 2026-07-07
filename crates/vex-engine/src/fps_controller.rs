@@ -14,7 +14,10 @@ pub const NEAR_PLANE: f32 = 0.05;
 pub const FAR_PLANE: f32 = 300.0;
 
 /// First-person walking controller: yaw/pitch look, ground-plane WASD,
-/// gravity and jumping, capsule collision against a [`TriangleSoup`].
+/// capsule collision against a [`TriangleSoup`]. Jump and sprint are
+/// classic defaults; games can disable them and enable the dash — a
+/// burst of decaying horizontal velocity on a long cooldown, triggered
+/// by Space or Shift, in the direction being walked (facing if still).
 pub struct FpsController {
     /// Feet position (bottom of the capsule).
     pub pos: Vec3,
@@ -26,9 +29,19 @@ pub struct FpsController {
     pub speed: f32,
     pub sensitivity: f32,
     pub fov_y: f32,
+    pub jump_enabled: bool,
+    pub sprint_enabled: bool,
+    pub dash_enabled: bool,
+    pub dash_cooldown: f32,
+    /// Initial dash burst speed; travel distance ≈ speed / decay.
+    pub dash_speed: f32,
+    pub dash_decay: f32,
     velocity_y: f32,
     grounded: bool,
     bob_phase: f32,
+    dash_velocity: Vec3,
+    dash_timer: f32,
+    dashed: bool,
 }
 
 impl FpsController {
@@ -43,9 +56,18 @@ impl FpsController {
             speed: 3.2,
             sensitivity: 0.0022,
             fov_y: 70f32.to_radians(),
+            jump_enabled: true,
+            sprint_enabled: true,
+            dash_enabled: false,
+            dash_cooldown: 10.0,
+            dash_speed: 26.0,
+            dash_decay: 6.5,
             velocity_y: 0.0,
             grounded: false,
             bob_phase: 0.0,
+            dash_velocity: Vec3::ZERO,
+            dash_timer: 0.0,
+            dashed: false,
         }
     }
 
@@ -72,22 +94,44 @@ impl FpsController {
         if input.is_down(KeyCode::KeyA) {
             wish -= right;
         }
-        let sprint = if input.is_down(KeyCode::ShiftLeft) {
+        let sprint = if self.sprint_enabled && input.is_down(KeyCode::ShiftLeft) {
             SPRINT_MULTIPLIER
         } else {
             1.0
         };
         let horizontal = wish.normalize_or_zero() * self.speed * sprint;
 
+        self.dash_timer = (self.dash_timer - dt).max(0.0);
+        if self.dash_enabled
+            && self.dash_timer <= 0.0
+            && (input.is_just_pressed(KeyCode::Space)
+                || input.is_just_pressed(KeyCode::ShiftLeft))
+        {
+            let dir = if wish.length_squared() > 1e-6 {
+                wish.normalize_or_zero()
+            } else {
+                forward
+            };
+            self.dash_velocity = dir * self.dash_speed;
+            self.dash_timer = self.dash_cooldown;
+            self.dashed = true;
+        }
+        // The burst decays exponentially; it rides through the same
+        // collision slide as walking, so walls stop it (nothing teleports).
+        self.dash_velocity *= (-self.dash_decay * dt).exp();
+        if self.dash_velocity.length_squared() < 1e-4 {
+            self.dash_velocity = Vec3::ZERO;
+        }
+
         self.velocity_y += GRAVITY * dt;
         if self.grounded {
             self.velocity_y = self.velocity_y.max(0.0);
-            if input.is_down(KeyCode::Space) {
+            if self.jump_enabled && input.is_down(KeyCode::Space) {
                 self.velocity_y = JUMP_SPEED;
             }
         }
 
-        let motion = (horizontal + Vec3::Y * self.velocity_y) * dt;
+        let motion = (horizontal + self.dash_velocity + Vec3::Y * self.velocity_y) * dt;
         let result = slide_capsule(soup, self.pos, self.radius, self.height, motion);
         self.pos = result.position;
         self.grounded = result.grounded;
@@ -99,6 +143,19 @@ impl FpsController {
 
     pub fn is_grounded(&self) -> bool {
         self.grounded
+    }
+
+    /// 0 → 1 dash recharge (1 = ready). Always 1 when the dash is off.
+    pub fn dash_ready_fraction(&self) -> f32 {
+        if self.dash_cooldown <= 0.0 {
+            return 1.0;
+        }
+        1.0 - (self.dash_timer / self.dash_cooldown).clamp(0.0, 1.0)
+    }
+
+    /// True once per dash — take-and-clear, for sound/FX triggers.
+    pub fn just_dashed(&mut self) -> bool {
+        std::mem::take(&mut self.dashed)
     }
 
     /// Walk-cycle phase in radians — drives weapon bob.
@@ -150,6 +207,52 @@ mod tests {
         }
         assert!(player.is_grounded());
         assert!(player.pos.y.abs() < 0.01, "feet at y={}", player.pos.y);
+    }
+
+    #[test]
+    fn dash_bursts_cools_down_and_recharges() {
+        let soup = floor();
+        let mut player = FpsController::new(vec3(0.0, 0.0, 0.0), 0.0);
+        player.jump_enabled = false;
+        player.sprint_enabled = false;
+        player.dash_enabled = true;
+        let mut input = Input::default();
+        input.set_key(KeyCode::KeyW, true);
+        input.set_key(KeyCode::Space, true);
+        for _ in 0..30 {
+            player.update(1.0 / 60.0, &input, &soup);
+        }
+        assert!(player.just_dashed());
+        let dashed_z = player.pos.z;
+        assert!(dashed_z < -3.0, "dash covered ground: z={dashed_z}");
+        assert!(player.pos.y.abs() < 0.01, "no liftoff with jump disabled");
+        assert!(player.dash_ready_fraction() < 0.2, "on cooldown");
+        // Walking alone over the same time covers far less.
+        assert!(dashed_z < -(3.2 * 0.5 + 1.0));
+        // Recharges after the cooldown elapses. (end_frame clears the
+        // just-pressed edge, as the shell does every frame — otherwise
+        // the held key would re-trigger the instant the cooldown ends.)
+        input.end_frame();
+        for _ in 0..(10 * 60 + 5) {
+            player.update(1.0 / 60.0, &input, &soup);
+        }
+        assert!(player.dash_ready_fraction() >= 1.0);
+    }
+
+    #[test]
+    fn disabled_sprint_ignores_shift() {
+        let soup = floor();
+        let mut fast = FpsController::new(vec3(0.0, 0.0, 0.0), 0.0);
+        let mut slow = FpsController::new(vec3(0.0, 0.0, 0.0), 0.0);
+        slow.sprint_enabled = false;
+        let mut input = Input::default();
+        input.set_key(KeyCode::KeyW, true);
+        input.set_key(KeyCode::ShiftLeft, true);
+        for _ in 0..60 {
+            fast.update(1.0 / 60.0, &input, &soup);
+            slow.update(1.0 / 60.0, &input, &soup);
+        }
+        assert!(fast.pos.z < slow.pos.z - 1.0, "sprint flag matters");
     }
 
     #[test]

@@ -1,14 +1,15 @@
 //! Arena: the playable demo. Waves of enemies pour out of the gates of a
-//! neon fight pit; cut them down with the sword. Everything on screen is
-//! the engine's stroke pipeline — enemies, particles, banners included.
+//! neon fight pit; cut them down with the pistol. Everything on screen
+//! is the engine's stroke pipeline — enemies, particles, banners included.
 //!
 //! Windowed:    cargo run -p arena
 //! Headless:    cargo run -p arena -- --screenshot out.png [--size WxH]
 //!                  [--demo SECONDS] [--recoil 0..1] [--pos x,y,z]
-//!                  [--yaw DEG] [--pitch DEG]
+//!                  [--yaw DEG] [--pitch DEG] [--wave N] [--pack AGE]
 //!
-//! Controls: click captures · WASD + Space · left click fires the pistol ·
-//!           [R] restarts after game over · [C] CRT · Esc releases.
+//! Controls: click captures · WASD moves · SPACE/SHIFT dashes (10 s
+//!           cooldown) · left click fires · [R] restarts · [C] CRT ·
+//!           Esc releases.
 
 mod game;
 
@@ -414,7 +415,7 @@ fn ring_segments(center: Vec3, radius: f32, color: Vec4) -> Vec<Segment> {
 
 // ------------------------------------------------------------------- hud --
 
-fn hud_segments(viewport: Vec2, game: &Game) -> Vec<Segment> {
+fn hud_segments(viewport: Vec2, game: &Game, dash_ready: f32) -> Vec<Segment> {
     let red = Vec4::new(phosphor::RED.x, phosphor::RED.y, phosphor::RED.z, 0.95);
     let lime = Vec4::new(phosphor::LIME.x, phosphor::LIME.y, phosphor::LIME.z, 0.9);
     let cyan = Vec4::new(phosphor::CYAN.x, phosphor::CYAN.y, phosphor::CYAN.z, 1.0);
@@ -425,6 +426,21 @@ fn hud_segments(viewport: Vec2, game: &Game) -> Vec<Segment> {
         20.0,
         red,
     );
+    // Dash meter: a 10-second resource needs to be legible at a glance.
+    let ready = dash_ready >= 1.0;
+    let dash_color = if ready {
+        Vec4::new(phosphor::CYAN.x, phosphor::CYAN.y, phosphor::CYAN.z, 1.25)
+    } else {
+        Vec4::new(phosphor::CYAN.x, phosphor::CYAN.y, phosphor::CYAN.z, 0.45)
+    };
+    out.extend(font::text_segments("DASH", vec2(28.0, 58.0), 12.0, dash_color));
+    let (bar_x, bar_y, bar_w) = (92.0, 63.0, 110.0);
+    out.push(Segment::new(
+        vec3(bar_x, bar_y, 0.0),
+        vec3(bar_x + bar_w * dash_ready.clamp(0.0, 1.0), bar_y, 0.0),
+        dash_color,
+    ));
+
     out.extend(font::text_segments(
         &format!("WAVE {}", game.wave),
         vec2(28.0, viewport.y - 46.0),
@@ -617,7 +633,12 @@ impl ArenaApp {
             &scene.occluder_indices,
             COLLISION_CELL,
         );
-        let player = FpsController::new(scene.player_spawn, scene.player_yaw);
+        let mut player = FpsController::new(scene.player_spawn, scene.player_yaw);
+        // Arena movement: no jump, no sprint — one dash on a long
+        // cooldown (community feedback: commitment over mobility).
+        player.jump_enabled = false;
+        player.sprint_enabled = false;
+        player.dash_enabled = true;
         let weapon = scene.weapon.clone().map(Weapon::new);
         log::info!(
             "arena: {} static segments · {} collision triangles",
@@ -860,7 +881,7 @@ impl ArenaApp {
         renderers.hud_lines.set_segments(
             &frame.gpu.device,
             &frame.gpu.queue,
-            &hud_segments(frame.viewport, &self.game),
+            &hud_segments(frame.viewport, &self.game, self.player.dash_ready_fraction()),
         );
         let hud_uniform = CameraUniform::new(
             glam::camera::rh::proj::directx::orthographic(
@@ -921,6 +942,11 @@ impl App for ArenaApp {
         if !matches!(self.game.phase, Phase::GameOver) {
             self.player.update(dt, input, &self.soup);
         }
+        if self.player.just_dashed()
+            && let Some(audio) = self.audio.as_mut()
+        {
+            audio.play(Sfx::Dash);
+        }
         let attack = input.is_captured() && input.is_mouse_just_pressed(MouseButton::Left);
         let (eye, aim) = (self.player.eye(), self.aim());
         self.game
@@ -957,8 +983,8 @@ fn main() -> Result<()> {
     }
 
     println!(
-        "controls: click captures · WASD + Space · LEFT CLICK fires · \
-         [R] restart · [C] CRT · Esc releases"
+        "controls: click captures · WASD moves · SPACE/SHIFT dashes · \
+         LEFT CLICK fires · [R] restart · [C] CRT · Esc releases"
     );
     let mut app = ArenaApp::new()?;
     if let Some(wave) = flag_value(&args, "--wave") {

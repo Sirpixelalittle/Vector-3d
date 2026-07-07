@@ -26,7 +26,8 @@ or build it yourself with `tools/build_web.sh` and
 cargo run --release -p arena
 ```
 
-Click to grab the mouse · `WASD` + `Space` · left-click fires · `R`
+Click to grab the mouse · `WASD` moves · `Space`/`Shift` **dashes**
+(10 s cooldown, in your movement direction) · left-click fires · `R`
 restarts · `C` toggles CRT mode · `[` `]` / `-` `=` / `9` `0` tune
 glow / bloom / exposure live · `Esc` releases.
 

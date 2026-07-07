@@ -205,6 +205,13 @@ pub fn boss_ring() -> StaticSoundData {
     to_sound(mix(mix(a, &b), &grind))
 }
 
+pub fn dash() -> StaticSoundData {
+    // A quick airy whoosh: rising sine under a fast-decaying noise gust.
+    let gust = burst(0.20, 14.0, 0.34);
+    let rise = sweep_exp(0.18, 240.0, 780.0, 4.0, 0.22, sine);
+    to_sound(mix(gust, &rise))
+}
+
 pub fn game_over() -> StaticSoundData {
     // Three falling notes into the void.
     let mut out = Vec::new();
@@ -240,6 +247,7 @@ mod tests {
             ("health_spawn", health_spawn()),
             ("health_pickup", health_pickup()),
             ("boss_ring", boss_ring()),
+            ("dash", dash()),
         ] {
             assert!(!sound.frames.is_empty(), "{name} is empty");
             let p = peak(&sound);

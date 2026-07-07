@@ -23,7 +23,7 @@
   <div>
     loading the arena…<br>
     needs a <b>WebGPU</b> browser (Chrome / Edge; Firefox 141+ on Windows).<br>
-    click to grab the mouse · WASD + Space · left click fires · R restarts · C for CRT
+    click to grab the mouse · WASD moves · SPACE dashes · left click fires · R restarts · C for CRT
   </div>
 </div>
 <script type="module">
@@ -37,7 +37,7 @@
       // Out of the way once the arena is running.
       setTimeout(() => hint.remove(), 4000);
       hint.firstElementChild.innerHTML =
-        'click to grab the mouse · WASD + Space · left click fires';
+        'click to grab the mouse · WASD moves · SPACE dashes · left click fires';
     }).catch((e) => {
       hint.firstElementChild.innerHTML =
         'failed to start: ' + e + '<br>(check the console)';
