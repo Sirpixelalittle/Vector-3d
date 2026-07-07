@@ -227,9 +227,75 @@ def make_healthpack():
     g.mesh("healthpack", [g.primitive(pts, tris, red)])
     g.write(OUT_DIR / "healthpack.gltf")
 
+
+def make_boss():
+    """Mini-boss: a true icosahedron cut at the equator into two models
+    (boss_top / boss_bottom), each with origin at the cut plane so the
+    game can raise and spin the crown independently. The equator cut
+    lands exactly on band-edge midpoints (a regular decagon); each half
+    is sealed with a flat decagon cap in a hotter flickering "core"
+    material -- the glow you see when the boss opens to fire."""
+    C = 1.15                      # circumradius
+    ry, rr = C / 5 ** 0.5, 2 * C / 5 ** 0.5
+    top = (0.0, C, 0.0)
+    bot = (0.0, -C, 0.0)
+    upper = [(rr * math.cos(math.radians(72 * k)), ry,
+              rr * math.sin(math.radians(72 * k))) for k in range(5)]
+    lower = [(rr * math.cos(math.radians(72 * k + 36)), -ry,
+              rr * math.sin(math.radians(72 * k + 36))) for k in range(5)]
+    mid = lambda a, b: tuple((x + y) / 2 for x, y in zip(a, b))
+    # Decagon: D[2k] on U_k->L_k, D[2k+1] on U_{k+1}->L_k (every 36 deg).
+    deca = []
+    for k in range(5):
+        deca.append(mid(upper[k], lower[k]))
+        deca.append(mid(upper[(k + 1) % 5], lower[k]))
+
+    def build(name, cap_up):
+        g = GltfBuilder()
+        shell = g.material("boss-shell", emissive=[1.0, 0.22, 0.12],
+                           emissive_strength=1.5)
+        core = g.material("boss-core-flicker", emissive=[1.0, 0.75, 0.30],
+                          emissive_strength=2.6)
+        pts, tris = [], []
+        cpts, ctris = [], []
+
+        def tri(a, b, c, into_pts=None, into_tris=None):
+            p = pts if into_pts is None else into_pts
+            t = tris if into_tris is None else into_tris
+            base = len(p)
+            p.extend([a, b, c])
+            t.extend([base, base + 1, base + 2])
+
+        if cap_up:  # top half: apex + upper ring + decagon
+            for k in range(5):
+                j = (k + 1) % 5
+                tri(top, upper[k], upper[j])                       # crown fan
+                tri(upper[k], upper[j], deca[2 * k])               # quad half
+                tri(upper[j], deca[2 * k + 1], deca[2 * k])        # quad half
+                tri(upper[j], deca[2 * k + 1], deca[(2 * k + 2) % 10])
+            for j in range(10):                                    # cap faces -Y
+                tri((0.0, 0.0, 0.0), deca[(j + 1) % 10], deca[j], cpts, ctris)
+        else:       # bottom half: mirror
+            for k in range(5):
+                j = (k + 1) % 5
+                tri(bot, lower[j], lower[k])
+                tri(lower[k], lower[j], deca[(2 * k + 2) % 10])
+                tri(lower[k], deca[(2 * k + 2) % 10], deca[2 * k + 1])
+                tri(lower[k], deca[2 * k + 1], deca[2 * k])
+            for j in range(10):                                    # cap faces +Y
+                tri((0.0, 0.0, 0.0), deca[j], deca[(j + 1) % 10], cpts, ctris)
+
+        g.mesh(name, [g.primitive(pts, tris, shell),
+                      g.primitive(cpts, ctris, core)])
+        g.write(OUT_DIR / f"{name}.gltf")
+
+    build("boss_top", True)
+    build("boss_bottom", False)
+
 if __name__ == "__main__":
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     make_arena()
     make_shard()
     make_sentinel()
     make_healthpack()
+    make_boss()

@@ -1,0 +1,149 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "vector3d gen_test_assets"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "boss_top",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0
+     },
+     "indices": 1,
+     "material": 0,
+     "mode": 4
+    },
+    {
+     "attributes": {
+      "POSITION": 2
+     },
+     "indices": 3,
+     "material": 1,
+     "mode": 4
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "boss-shell",
+   "pbrMetallicRoughness": {},
+   "emissiveFactor": [
+    1.0,
+    0.22,
+    0.12
+   ],
+   "extensions": {
+    "KHR_materials_emissive_strength": {
+     "emissiveStrength": 1.5
+    }
+   }
+  },
+  {
+   "name": "boss-core-flicker",
+   "pbrMetallicRoughness": {},
+   "emissiveFactor": [
+    1.0,
+    0.75,
+    0.3
+   ],
+   "extensions": {
+    "KHR_materials_emissive_strength": {
+     "emissiveStrength": 2.6
+    }
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AAAAADMzkz8AAAAA4aiDP+GoAz8AAAAAhb2iPuGoAz99bno/4aiDP+GoAz8AAAAAhb2iPuGoAz99bno/syxuPwAAAAB2xpo+hb2iPuGoAz99bno/MzMTPwAAAAB6mko/syxuPwAAAAB2xpo+hb2iPuGoAz99bno/MzMTPwAAAAB6mko/AACAJAAAAAB9bno/AAAAADMzkz8AAAAAhb2iPuGoAz99bno/pAdVv+GoAz92xho/hb2iPuGoAz99bno/pAdVv+GoAz92xho/AACAJAAAAAB9bno/pAdVv+GoAz92xho/MzMTvwAAAAB6mko/AACAJAAAAAB9bno/pAdVv+GoAz92xho/MzMTvwAAAAB6mko/syxuvwAAAAB2xpo+AAAAADMzkz8AAAAApAdVv+GoAz92xho/pAdVv+GoAz92xhq/pAdVv+GoAz92xho/pAdVv+GoAz92xhq/syxuvwAAAAB2xpo+pAdVv+GoAz92xhq/syxuvwAAAAB2xpq+syxuvwAAAAB2xpo+pAdVv+GoAz92xhq/syxuvwAAAAB2xpq+MzMTvwAAAAB6mkq/AAAAADMzkz8AAAAApAdVv+GoAz92xhq/hb2iPuGoAz99bnq/pAdVv+GoAz92xhq/hb2iPuGoAz99bnq/MzMTvwAAAAB6mkq/hb2iPuGoAz99bnq/AABApQAAAAB9bnq/MzMTvwAAAAB6mkq/hb2iPuGoAz99bnq/AABApQAAAAB9bnq/MzMTPwAAAAB6mkq/AAAAADMzkz8AAAAAhb2iPuGoAz99bnq/4aiDP+GoAz8AAAAAhb2iPuGoAz99bnq/4aiDP+GoAz8AAAAAMzMTPwAAAAB6mkq/4aiDP+GoAz8AAAAAsyxuPwAAAAB2xpq+MzMTPwAAAAB6mkq/4aiDP+GoAz8AAAAAsyxuPwAAAAB2xpq+syxuPwAAAAB2xpo+AAAAAAEAAAACAAAAAwAAAAQAAAAFAAAABgAAAAcAAAAIAAAACQAAAAoAAAALAAAADAAAAA0AAAAOAAAADwAAABAAAAARAAAAEgAAABMAAAAUAAAAFQAAABYAAAAXAAAAGAAAABkAAAAaAAAAGwAAABwAAAAdAAAAHgAAAB8AAAAgAAAAIQAAACIAAAAjAAAAJAAAACUAAAAmAAAAJwAAACgAAAApAAAAKgAAACsAAAAsAAAALQAAAC4AAAAvAAAAMAAAADEAAAAyAAAAMwAAADQAAAA1AAAANgAAADcAAAA4AAAAOQAAADoAAAA7AAAAAAAAAAAAAAAAAAAAMzMTPwAAAAB6mko/syxuPwAAAAB2xpo+AAAAAAAAAAAAAAAAAACAJAAAAAB9bno/MzMTPwAAAAB6mko/AAAAAAAAAAAAAAAAMzMTvwAAAAB6mko/AACAJAAAAAB9bno/AAAAAAAAAAAAAAAAsyxuvwAAAAB2xpo+MzMTvwAAAAB6mko/AAAAAAAAAAAAAAAAsyxuvwAAAAB2xpq+syxuvwAAAAB2xpo+AAAAAAAAAAAAAAAAMzMTvwAAAAB6mkq/syxuvwAAAAB2xpq+AAAAAAAAAAAAAAAAAABApQAAAAB9bnq/MzMTvwAAAAB6mkq/AAAAAAAAAAAAAAAAMzMTPwAAAAB6mkq/AABApQAAAAB9bnq/AAAAAAAAAAAAAAAAsyxuPwAAAAB2xpq+MzMTPwAAAAB6mkq/AAAAAAAAAAAAAAAAsyxuPwAAAAB2xpo+syxuPwAAAAB2xpq+AAAAAAEAAAACAAAAAwAAAAQAAAAFAAAABgAAAAcAAAAIAAAACQAAAAoAAAALAAAADAAAAA0AAAAOAAAADwAAABAAAAARAAAAEgAAABMAAAAUAAAAFQAAABYAAAAXAAAAGAAAABkAAAAaAAAAGwAAABwAAAAdAAAA",
+   "byteLength": 1440
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 720
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 720,
+   "byteLength": 240
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 960,
+   "byteLength": 360
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 1320,
+   "byteLength": 120
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 60,
+   "type": "VEC3",
+   "min": [
+    -0.9303695435311894,
+    0.0,
+    -0.9782484296048458
+   ],
+   "max": [
+    1.028591269649903,
+    1.15,
+    0.9782484296048457
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5125,
+   "count": 60,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 30,
+   "type": "VEC3",
+   "min": [
+    -0.9303695435311894,
+    0.0,
+    -0.9782484296048457
+   ],
+   "max": [
+    0.9303695435311894,
+    0.0,
+    0.9782484296048457
+   ]
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5125,
+   "count": 30,
+   "type": "SCALAR"
+  }
+ ],
+ "extensionsUsed": [
+  "KHR_materials_emissive_strength"
+ ]
+}
