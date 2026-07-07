@@ -16,7 +16,7 @@ use anyhow::{Context, Result, bail};
 use glam::{Vec2, Vec4, vec3};
 use vex_convert::ConvertOptions;
 use vex_core::{EdgeKind, Segment, VecModel, phosphor};
-use vex_engine::{App, Input, KeyCode, OrbitCamera};
+use vex_engine::{AnimPlayer, App, Clip, Input, KeyCode, OrbitCamera, Pose};
 use vex_render::{
     CameraBinding, CameraUniform, Gpu, HDR_FORMAT, HeadlessTarget, LineRenderer,
     OccluderRenderer, PostProcessor, PostSettings,
@@ -49,10 +49,22 @@ fn load_model(path: &Path) -> Result<VecModel> {
     }
 }
 
-/// World-space segments for the model + a context grid under it.
-fn build_segments(model: &VecModel, show_smooth: bool) -> Vec<Segment> {
+/// World-space segments + occluder vertices, optionally driven by an
+/// animation pose (the grid stays put; the model moves).
+fn build_geometry(
+    model: &VecModel,
+    show_smooth: bool,
+    pose: Option<&Pose>,
+) -> (Vec<Segment>, Vec<glam::Vec3>) {
+    let transform = pose.map_or(glam::Mat4::IDENTITY, Pose::transform);
+    let intensity = pose.map_or(1.0, |p| p.intensity);
     let mut segments = grid_under(model);
-    segments.extend(model.edge_segments(EdgeKind::Always, 1.0));
+    let place = |s: Segment| Segment {
+        a: transform.transform_point3(s.a),
+        b: transform.transform_point3(s.b),
+        ..s
+    };
+    segments.extend(model.edge_segments(EdgeKind::Always, intensity).into_iter().map(place));
     if show_smooth {
         let blue = Vec4::new(
             phosphor::BLUE.x,
@@ -64,10 +76,15 @@ fn build_segments(model: &VecModel, show_smooth: bool) -> Vec<Segment> {
             model
                 .edge_segments(EdgeKind::Smooth, 1.0)
                 .into_iter()
-                .map(|s| Segment::new(s.a, s.b, blue)),
+                .map(|s| place(Segment::new(s.a, s.b, blue))),
         );
     }
-    segments
+    let vertices = model
+        .vertices
+        .iter()
+        .map(|&v| transform.transform_point3(v))
+        .collect();
+    (segments, vertices)
 }
 
 fn grid_under(model: &VecModel) -> Vec<Segment> {
@@ -122,14 +139,16 @@ impl Renderers {
         }
     }
 
-    fn upload(&mut self, gpu: &Gpu, model: &VecModel, segments: &[Segment]) {
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        vertices: &[glam::Vec3],
+        indices: &[u32],
+        segments: &[Segment],
+    ) {
         self.lines.set_segments(&gpu.device, &gpu.queue, segments);
-        self.occluders.set_geometry(
-            &gpu.device,
-            &gpu.queue,
-            &model.vertices,
-            &model.occluder_indices,
-        );
+        self.occluders
+            .set_geometry(&gpu.device, &gpu.queue, vertices, indices);
     }
 
     fn set_silhouettes(&mut self, gpu: &Gpu, segments: &[Segment]) {
@@ -170,15 +189,23 @@ struct ViewerApp {
     renderers: Option<Renderers>,
     needs_upload: bool,
     mtime: Option<SystemTime>,
+    anim: Option<AnimPlayer>,
+    anim_source: Option<PathBuf>,
+    anim_mtime: Option<SystemTime>,
     poll_accum: f32,
     time: f32,
 }
 
 impl ViewerApp {
-    fn new(source: PathBuf) -> Result<Self> {
+    fn new(source: PathBuf, anim_source: Option<PathBuf>) -> Result<Self> {
         let model = load_model(&source)?;
         let camera = OrbitCamera::framing(model.aabb_min, model.aabb_max);
         let mtime = file_mtime(&source);
+        let anim = match &anim_source {
+            Some(path) => Some(AnimPlayer::new(Clip::load(path)?)),
+            None => None,
+        };
+        let anim_mtime = anim_source.as_deref().and_then(file_mtime);
         Ok(Self {
             source,
             model,
@@ -187,6 +214,9 @@ impl ViewerApp {
             renderers: None,
             needs_upload: true,
             mtime,
+            anim,
+            anim_source,
+            anim_mtime,
             poll_accum: 0.0,
             time: 0.0,
         })
@@ -198,6 +228,7 @@ impl ViewerApp {
             return;
         }
         self.poll_accum = 0.0;
+        self.poll_anim_reload();
         let current = file_mtime(&self.source);
         if current == self.mtime {
             return;
@@ -215,6 +246,29 @@ impl ViewerApp {
             Err(err) => println!("reload failed (will retry): {err:#}"),
         }
     }
+
+    /// Hot-reload the clip like the model; playback time carries over so
+    /// tweaking keys doesn't restart the motion.
+    fn poll_anim_reload(&mut self) {
+        let Some(path) = self.anim_source.clone() else {
+            return;
+        };
+        let current = file_mtime(&path);
+        if current == self.anim_mtime {
+            return;
+        }
+        self.anim_mtime = current;
+        match Clip::load(&path) {
+            Ok(clip) => {
+                let time = self.anim.as_ref().map_or(0.0, |a| a.time);
+                let mut player = AnimPlayer::new(clip);
+                player.time = time;
+                self.anim = Some(player);
+                println!("reloaded {}", path.display());
+            }
+            Err(err) => println!("clip reload failed (will retry): {err:#}"),
+        }
+    }
 }
 
 fn file_mtime(path: &Path) -> Option<SystemTime> {
@@ -228,6 +282,9 @@ impl App for ViewerApp {
 
     fn update(&mut self, dt: f32, input: &Input) {
         self.time += dt;
+        if let Some(anim) = &mut self.anim {
+            anim.update(dt);
+        }
         self.camera.update(input);
         if input.is_just_pressed(KeyCode::KeyS) {
             self.show_smooth = !self.show_smooth;
@@ -250,15 +307,20 @@ impl App for ViewerApp {
         let Some(renderers) = self.renderers.as_mut() else {
             return;
         };
-        if self.needs_upload {
-            let segments = build_segments(&self.model, self.show_smooth);
-            renderers.upload(gpu, &self.model, &segments);
+        let pose = self.anim.as_ref().map(|a| a.pose());
+        // Animated models re-upload every frame; static ones only when
+        // something changed.
+        if self.needs_upload || pose.is_some() {
+            let (segments, vertices) = build_geometry(&self.model, self.show_smooth, pose.as_ref());
+            renderers.upload(gpu, &vertices, &self.model.occluder_indices, &segments);
             self.needs_upload = false;
         }
         // Silhouettes depend on the eye — refreshed every frame.
+        let transform = pose.as_ref().map_or(glam::Mat4::IDENTITY, Pose::transform);
+        let intensity = pose.as_ref().map_or(1.0, |p| p.intensity);
         let silhouettes =
             self.model
-                .silhouette_segments(glam::Mat4::IDENTITY, self.camera.eye(), 1.0);
+                .silhouette_segments(transform, self.camera.eye(), intensity);
         renderers.set_silhouettes(gpu, &silhouettes);
         let settings = PostSettings::default();
         let camera = CameraUniform::new(
@@ -278,7 +340,10 @@ fn main() -> Result<()> {
     env_logger::init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(source) = args.iter().find(|a| !a.starts_with("--")).cloned() else {
-        bail!("usage: viewer <model.vec|model.gltf|model.glb> [--screenshot out.png]");
+        bail!(
+            "usage: viewer <model.vec|model.gltf|model.glb> \
+             [--anim clip.anim.ron] [--screenshot out.png [--time T]]"
+        );
     };
     let source = PathBuf::from(source);
 
@@ -288,13 +353,14 @@ fn main() -> Result<()> {
 
     println!(
         "controls: left-click orbits (Esc releases) · scroll zooms · \
-         [S] smooth candidates · [R] reframe · edit+save the file to hot-reload"
+         [S] smooth candidates · [R] reframe · edit+save model or clip to hot-reload"
     );
     let title = format!(
         "vector3d — viewer — {}",
         source.file_name().unwrap_or_default().to_string_lossy()
     );
-    vex_engine::run(&title, ViewerApp::new(source)?)
+    let anim = flag_value(&args, "--anim").map(PathBuf::from);
+    vex_engine::run(&title, ViewerApp::new(source, anim)?)
 }
 
 fn flag_value(args: &[String], flag: &str) -> Option<String> {
@@ -333,11 +399,22 @@ fn screenshot(source: &Path, out: &Path, args: &[String]) -> Result<()> {
     camera.pitch = parse_flag(args, "--pitch", camera.pitch)?;
     camera.distance *= parse_flag(args, "--zoom", 1.0f32)?;
 
+    let pose = match flag_value(args, "--anim") {
+        Some(path) => {
+            let clip = Clip::load(Path::new(&path))?;
+            Some(clip.sample(parse_flag(args, "--time", 0.0f32)?))
+        }
+        None => None,
+    };
+
     let gpu = Gpu::headless()?;
     let target = HeadlessTarget::new(&gpu.device, width, height);
     let mut renderers = Renderers::new(&gpu.device, vex_render::HEADLESS_FORMAT);
-    renderers.upload(&gpu, &model, &build_segments(&model, show_smooth));
-    let silhouettes = model.silhouette_segments(glam::Mat4::IDENTITY, camera.eye(), 1.0);
+    let (segments, vertices) = build_geometry(&model, show_smooth, pose.as_ref());
+    renderers.upload(&gpu, &vertices, &model.occluder_indices, &segments);
+    let transform = pose.as_ref().map_or(glam::Mat4::IDENTITY, Pose::transform);
+    let intensity = pose.as_ref().map_or(1.0, |p| p.intensity);
+    let silhouettes = model.silhouette_segments(transform, camera.eye(), intensity);
     renderers.set_silhouettes(&gpu, &silhouettes);
 
     let settings = PostSettings::default();

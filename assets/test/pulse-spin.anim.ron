@@ -1,0 +1,11 @@
+// Showcase clip: slow turntable, gentle bob, and a phosphor glow pulse.
+// Preview:  cargo run -p viewer -- assets/suzanne/suzanne.vec --anim assets/test/pulse-spin.anim.ron
+Clip(
+    duration: 6.0,
+    loop_mode: Loop,
+    tracks: [
+        Track(channel: RotY, easing: Linear, keys: [(0.0, 0.0), (6.0, 360.0)]),
+        Track(channel: PosY, easing: Smooth, keys: [(0.0, 0.0), (1.5, 0.18), (3.0, 0.0), (4.5, 0.18), (6.0, 0.0)]),
+        Track(channel: Intensity, easing: Smooth, keys: [(0.0, 1.0), (3.0, 1.8), (6.0, 1.0)]),
+    ],
+)

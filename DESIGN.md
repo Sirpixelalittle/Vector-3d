@@ -329,6 +329,18 @@ collision-ready occluders. Preview renders through the real pass chain
 (HDR bloom, glow dial, CRT), palette capped at 255 combos with graceful
 refusal. Blender stays the hero-asset tool; this is for spaces.
 
+**M9 — Animation clips** ✅ *2026-07-06*
+`vex_engine::anim`: keyframed rigid-transform clips in hand-editable RON
+(`.anim.ron`). Channels: PosX/Y/Z, RotX/Y/Z (degrees, YXZ), uniform
+Scale, and Intensity — line brightness as a first-class animatable
+channel. Step/Linear/Smooth easing per track, Once/Loop/PingPong
+playback, `Clip::sample(t) → Pose`, `Pose::transform()` composes onto
+any base matrix; layering is plain code (sample two clips, multiply).
+`AnimPlayer` owns time/speed/finished. The viewer previews clips
+(`--anim file`, `--time T` headless) with hot-reload on save, sharing
+playback time across reloads so key tweaks don't restart the motion.
+Games keep gameplay-driven motion in code; clips are for authored feel.
+
 **M6+ — Stretch**
 SVG frame export (posters/marketing shots), WebGPU browser demo,
 oscilloscope/ILDA laser output (a *true* vector display backend — the

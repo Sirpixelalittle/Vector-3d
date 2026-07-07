@@ -1,6 +1,7 @@
 //! Application shell for the vector3d engine: window, event loop, input,
 //! camera controllers.
 
+pub mod anim;
 pub mod collide;
 mod fly_camera;
 mod fps_controller;
@@ -9,6 +10,7 @@ mod orbit_camera;
 pub mod scene;
 mod shell;
 
+pub use anim::{AnimPlayer, Channel, Clip, Easing, LoopMode, Pose, Track};
 pub use collide::TriangleSoup;
 pub use fly_camera::FlyCamera;
 pub use fps_controller::FpsController;

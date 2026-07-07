@@ -96,6 +96,21 @@ game's pipeline, bloom and all. `F5` saves the editable RON document,
 content, so exported levels get silhouettes, clean welded outlines, and
 collision for free. `F1` shows the full key reference in-app.
 
+### Animation clips
+
+Rigid-transform animation lives in hand-editable `.anim.ron` files:
+keyframed tracks over position, rotation, scale — and **intensity**, so
+glow itself can be animated (the most vector-native channel there is).
+Step/linear/smooth easing, loop/once/ping-pong playback. Preview a clip
+on any model with hot-reload on save:
+
+```
+cargo run -p viewer -- assets/suzanne/suzanne.vec --anim assets/test/pulse-spin.anim.ron
+```
+
+Games sample a `Clip` into a `Pose` and compose it onto any transform;
+clips know nothing about what they animate.
+
 ## Workspace
 
 | Crate / example      | What it is                                          |
