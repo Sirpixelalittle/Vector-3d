@@ -158,6 +158,11 @@ tools/build_web.sh              # → dist-web/, ready for any static host
 tools/package_demo.sh           # → native Linux tarball in dist/
 ```
 
+The arena binary embeds all its assets: `target/release/arena` runs from
+anywhere, standalone. An `assets/` directory next to the executable (or
+in the working directory) overrides the embedded copies, so packaged
+builds stay moddable.
+
 ## For AI agents
 
 `.claude/skills/vector3d-engine/SKILL.md` is the working agreement for

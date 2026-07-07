@@ -52,8 +52,10 @@ fn asset_root() -> std::path::PathBuf {
     std::path::PathBuf::from(".")
 }
 
-/// The browser has no filesystem: every asset is baked into the wasm.
-#[cfg(target_arch = "wasm32")]
+/// Every asset baked into the executable: the browser has no filesystem,
+/// and a bare native binary copied anywhere still runs — a real
+/// `assets/` directory next to the executable (or in the working
+/// directory) takes precedence, so packaged builds stay moddable.
 mod embedded {
     pub const SCENE: &str = include_str!("../../../assets/arena/scene.ron");
     pub const ARENA: &[u8] = include_bytes!("../../../assets/arena/arena.vec");
@@ -529,9 +531,35 @@ struct ArenaApp {
 }
 
 impl ArenaApp {
+    /// Load everything from the copies baked into the executable.
+    fn load_embedded() -> Result<(BakedScene, GameModels)> {
+        let scene = vex_engine::load_scene_from_str(embedded::SCENE, |reference| {
+            Ok(match reference {
+                "arena.vec" => VecModel::load_from(embedded::ARENA)?,
+                "../pistol.vec" => VecModel::load_from(embedded::PISTOL)?,
+                other => anyhow::bail!("no embedded model for '{other}'"),
+            })
+        })?;
+        let models = GameModels {
+            shard: VecModel::load_from(embedded::SHARD).context("shard.vec")?,
+            sentinel: VecModel::load_from(embedded::SENTINEL).context("sentinel.vec")?,
+            healthpack: VecModel::load_from(embedded::HEALTHPACK).context("healthpack.vec")?,
+            boss_top: VecModel::load_from(embedded::BOSS_TOP).context("boss_top.vec")?,
+            boss_bottom: VecModel::load_from(embedded::BOSS_BOTTOM).context("boss_bottom.vec")?,
+        };
+        Ok((scene, models))
+    }
+
+    /// Native: an `assets/` directory on disk wins (repo runs, modded
+    /// packages); otherwise fall back to the embedded copies so a bare
+    /// executable runs from anywhere.
     #[cfg(not(target_arch = "wasm32"))]
     fn load_content() -> Result<(BakedScene, GameModels)> {
         let root = asset_root();
+        if !root.join(SCENE_PATH).exists() {
+            log::info!("no assets on disk — running from embedded copies");
+            return Self::load_embedded();
+        }
         let scene = vex_engine::load_scene(&root.join(SCENE_PATH))
             .with_context(|| format!("load scene {SCENE_PATH}"))?;
         let models = GameModels {
@@ -548,21 +576,7 @@ impl ArenaApp {
 
     #[cfg(target_arch = "wasm32")]
     fn load_content() -> Result<(BakedScene, GameModels)> {
-        let scene = vex_engine::load_scene_from_str(embedded::SCENE, |reference| {
-            Ok(match reference {
-                "arena.vec" => VecModel::load_from(embedded::ARENA)?,
-                "../pistol.vec" => VecModel::load_from(embedded::PISTOL)?,
-                other => anyhow::bail!("no embedded model for '{other}'"),
-            })
-        })?;
-        let models = GameModels {
-            shard: VecModel::load_from(embedded::SHARD).context("shard.vec")?,
-            sentinel: VecModel::load_from(embedded::SENTINEL).context("sentinel.vec")?,
-            healthpack: VecModel::load_from(embedded::HEALTHPACK).context("healthpack.vec")?,
-            boss_top: VecModel::load_from(embedded::BOSS_TOP).context("boss_top.vec")?,
-            boss_bottom: VecModel::load_from(embedded::BOSS_BOTTOM).context("boss_bottom.vec")?,
-        };
-        Ok((scene, models))
+        Self::load_embedded()
     }
 
     fn new() -> Result<Self> {
