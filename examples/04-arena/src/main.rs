@@ -171,20 +171,29 @@ fn muzzle_flash(recoil: f32) -> Vec<Segment> {
     if k <= 0.0 {
         return Vec::new();
     }
-    let len = 0.04 + 0.06 * k;
-    let color = Vec4::new(1.0, 0.85, 0.4, 1.4 + k);
+    let len = 0.05 + 0.08 * k;
+    // White-hot and strongly overbright: it lives for a couple of frames,
+    // so it can afford to bloom hard.
+    let color = Vec4::new(1.0, 0.93, 0.66, 2.6 + 1.6 * k);
     // Ride the same recoil kick the viewmodel uses, so the flash stays
     // glued to the barrel as the gun jumps.
     let origin = MUZZLE + vec3(0.0, 0.02 * recoil, 0.10 * recoil);
-    const SPOKES: usize = 6;
-    (0..SPOKES)
+    const SPOKES: usize = 8;
+    let mut out: Vec<Segment> = (0..SPOKES)
         .map(|i| {
             let a = std::f32::consts::TAU * i as f32 / SPOKES as f32;
             // Forward-biased so it reads as blowing out of the barrel.
             let dir = vec3(a.cos() * len, a.sin() * len, -len * 0.5);
             Segment::new(origin, origin + dir, color)
         })
-        .collect()
+        .collect();
+    // A hot jet straight out of the bore.
+    out.push(Segment::new(
+        origin,
+        origin + vec3(0.0, 0.0, -len * 2.2),
+        Vec4::new(1.0, 0.98, 0.85, 3.2 + 1.6 * k),
+    ));
+    out
 }
 
 // --------------------------------------------------------------- enemies --
