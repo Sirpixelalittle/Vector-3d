@@ -207,6 +207,38 @@ impl GameModels {
     }
 }
 
+/// Enemy bolts as tiny wire darts — nose and tail spikes on a small
+/// square mid-ring, oriented along the velocity, with a fading trail.
+/// A streak-along-velocity vanishes to a dot exactly when a bolt flies
+/// at your face; the dart's ring stays visible head-on (Tempest drew
+/// its shots as little shapes for the same reason).
+fn bolt_dart(bolt: &game::Bolt) -> impl Iterator<Item = Segment> {
+    const HALF_LEN: f32 = 0.30;
+    const GIRTH: f32 = 0.075;
+    const TRAIL: f32 = 0.5;
+    let fwd = bolt.vel.normalize_or_zero();
+    let reference = if fwd.y.abs() > 0.9 { Vec3::X } else { Vec3::Y };
+    let right = fwd.cross(reference).normalize_or_zero() * GIRTH;
+    let up = right.cross(fwd).normalize_or_zero() * GIRTH;
+    let (nose, tail) = (bolt.pos + fwd * HALF_LEN, bolt.pos - fwd * HALF_LEN);
+    let ring = [
+        bolt.pos + right,
+        bolt.pos + up,
+        bolt.pos - right,
+        bolt.pos - up,
+    ];
+    let color = bolt.color;
+    let trail_color = Vec4::new(color.x, color.y, color.z, color.w * 0.45);
+    let mut out = Vec::with_capacity(13);
+    for i in 0..4 {
+        out.push(Segment::new(nose, ring[i], color));
+        out.push(Segment::new(tail, ring[i], color));
+        out.push(Segment::new(ring[i], ring[(i + 1) % 4], color));
+    }
+    out.push(Segment::new(tail, tail - fwd * TRAIL, trail_color));
+    out.into_iter()
+}
+
 /// Enemies, spawn telegraphs, pickups and particles as this frame's
 /// dynamic geometry (world-space segments + occluder soup).
 fn build_dynamic(
@@ -328,8 +360,7 @@ fn build_dynamic(
 
     // Enemy bolts: hot glowing darts in their shooter's color.
     for bolt in &game.bolts {
-        let half = bolt.segment_half();
-        segments.push(Segment::new(bolt.pos - half, bolt.pos + half, bolt.color));
+        segments.extend(bolt_dart(bolt));
     }
 
     for particle in &game.particles {

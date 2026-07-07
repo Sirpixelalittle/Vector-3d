@@ -236,10 +236,6 @@ pub struct Bolt {
 }
 
 impl Bolt {
-    /// Short segment along travel, for rendering.
-    pub fn segment_half(&self) -> Vec3 {
-        self.vel.normalize_or_zero() * 0.35
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
