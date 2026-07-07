@@ -226,10 +226,18 @@ fn bolt_dart(bolt: &game::Bolt) -> impl Iterator<Item = Segment> {
     const HALF_LEN: f32 = 0.30;
     const GIRTH: f32 = 0.075;
     const TRAIL: f32 = 0.5;
+    // Lazy roll around the flight axis (radians/sec) — the square ring
+    // glints as its corners sweep past, like a thrown dart drifting.
+    const SPIN_RATE: f32 = 2.5;
     let fwd = bolt.vel.normalize_or_zero();
     let reference = if fwd.y.abs() > 0.9 { Vec3::X } else { Vec3::Y };
-    let right = fwd.cross(reference).normalize_or_zero() * GIRTH;
-    let up = right.cross(fwd).normalize_or_zero() * GIRTH;
+    let base_right = fwd.cross(reference).normalize_or_zero() * GIRTH;
+    let base_up = base_right.cross(fwd).normalize_or_zero() * GIRTH;
+    // `life` ticks down every frame, so it doubles as the spin clock — no
+    // new bolt state. Bolts from one volley share a life and roll in sync.
+    let (s, c) = (bolt.life * SPIN_RATE).sin_cos();
+    let right = base_right * c + base_up * s;
+    let up = base_up * c - base_right * s;
     let (nose, tail) = (bolt.pos + fwd * HALF_LEN, bolt.pos - fwd * HALF_LEN);
     let ring = [
         bolt.pos + right,
