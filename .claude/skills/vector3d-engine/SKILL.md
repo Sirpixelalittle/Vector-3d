@@ -66,6 +66,13 @@ iteration, don't declare feel "fixed" from a static screenshot.
   failure, or loosen an assertion to get green. A failing test means the
   code is wrong or the world changed — find out which, report it.
 
+A PreToolUse hook (`.claude/hooks/guard-load-bearing.py`) enforces the
+hottest of these: edits to `model.rs`, the WGSL shaders, `camera.rs`,
+and `collide.rs` pause for explicit human approval. If you trip it,
+that's the system working — state your diagnosis and let the user
+decide. Editing around the hook (e.g. via shell) violates this
+agreement.
+
 ## Post-cutoff dependencies — your training data is wrong here
 
 wgpu 30, winit 0.30 (web), kira 0.12, glam 0.33 are newer than most
