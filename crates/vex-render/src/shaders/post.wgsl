@@ -84,11 +84,21 @@ fn fs_composite(in: FsIn) -> @location(0) vec4<f32> {
     let inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
 
     // Chromatic aberration: phosphor triads misconverging toward the edges.
-    let chroma = centered * 0.0035 * params.crt;
-    let r = textureSample(scene, post_samp, uv + chroma).r;
-    let g = textureSample(scene, post_samp, uv).g;
-    let b = textureSample(scene, post_samp, uv - chroma).b;
-    var color = vec3<f32>(r, g, b);
+    // Clean mode (crt == 0, the default) takes one sample instead of three
+    // — the offsets would be zero anyway, and this full-res pass is pure
+    // bandwidth on small GPUs. The branch is uniform (params is a uniform
+    // buffer), so sampling inside it satisfies WGSL uniformity rules.
+    var color: vec3<f32>;
+    if (params.crt > 0.0) {
+        let chroma = centered * 0.0035 * params.crt;
+        color = vec3<f32>(
+            textureSample(scene, post_samp, uv + chroma).r,
+            textureSample(scene, post_samp, uv).g,
+            textureSample(scene, post_samp, uv - chroma).b,
+        );
+    } else {
+        color = textureSample(scene, post_samp, uv).rgb;
+    }
 
     color += textureSample(bloom, post_samp, uv).rgb * params.bloom_strength;
 

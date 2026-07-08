@@ -50,6 +50,9 @@ pub struct LineRenderer {
     instance_buffer: wgpu::Buffer,
     capacity: usize,
     count: u32,
+    /// Reused staging area for instance conversion — dynamic callers
+    /// upload every frame, and a fresh Vec per frame is avoidable churn.
+    scratch: Vec<SegmentInstance>,
 }
 
 impl LineRenderer {
@@ -120,6 +123,7 @@ impl LineRenderer {
             instance_buffer,
             capacity: INITIAL_CAPACITY,
             count: 0,
+            scratch: Vec::new(),
         }
     }
 
@@ -143,9 +147,10 @@ impl LineRenderer {
             self.capacity = segments.len().next_power_of_two();
             self.instance_buffer = Self::create_instance_buffer(device, self.capacity);
         }
-        let instances: Vec<SegmentInstance> = segments.iter().map(SegmentInstance::from).collect();
-        if !instances.is_empty() {
-            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
+        self.scratch.clear();
+        self.scratch.extend(segments.iter().map(SegmentInstance::from));
+        if !self.scratch.is_empty() {
+            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&self.scratch));
         }
         self.count = segments.len() as u32;
     }
