@@ -38,6 +38,26 @@ rm -rf dist-web
     target/wasm32-unknown-unknown/release/arena.wasm
 cp web/index.html dist-web/
 
+# Optional but recommended: binaryen's whole-module optimizer. Recovers
+# most of what the disabled wasm LTO leaves on the table (see above) and
+# shrinks the download. Features must be listed explicitly: our release
+# profile strips custom sections (`strip = "symbols"`), so binaryen can't
+# read them from the module. All of these are baseline in every
+# WebGPU-capable browser.
+if command -v wasm-opt >/dev/null 2>&1; then
+    RAW=$(du -h dist-web/arena_bg.wasm | cut -f1)
+    echo "==> wasm-opt -O2 ($(wasm-opt --version))"
+    wasm-opt -O2 \
+        --enable-bulk-memory --enable-sign-ext --enable-mutable-globals \
+        --enable-multivalue --enable-nontrapping-float-to-int \
+        --enable-reference-types \
+        dist-web/arena_bg.wasm -o dist-web/arena_bg.wasm.opt
+    mv dist-web/arena_bg.wasm.opt dist-web/arena_bg.wasm
+    echo "    $RAW → $(du -h dist-web/arena_bg.wasm | cut -f1)"
+else
+    echo "==> wasm-opt not found (pacman -S binaryen) — shipping unoptimized wasm"
+fi
+
 SIZE=$(du -h dist-web/arena_bg.wasm | cut -f1)
 echo "==> done: dist-web/ (wasm $SIZE)"
 echo "    try it:  python3 -m http.server 8080 -d dist-web"
