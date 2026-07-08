@@ -212,6 +212,15 @@ pub fn dash() -> StaticSoundData {
     to_sound(mix(gust, &rise))
 }
 
+pub fn ricochet() -> StaticSoundData {
+    // A slug glancing off the boss's sealed shell: bright metallic ping
+    // whipping downward over a hard little snap — unmistakably "bounced".
+    let ping = sweep_exp(0.16, 2600.0, 900.0, 9.0, 0.26, sine);
+    let edge = sweep_exp(0.09, 3900.0, 1700.0, 12.0, 0.10, saw);
+    let snap = burst(0.03, 30.0, 0.18);
+    to_sound(mix(mix(ping, &edge), &snap))
+}
+
 pub fn game_over() -> StaticSoundData {
     // Three falling notes into the void.
     let mut out = Vec::new();

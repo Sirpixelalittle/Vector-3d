@@ -381,6 +381,18 @@ fn build_dynamic(
         segments.extend(bolt_dart(bolt));
     }
 
+    // Player slugs: tiny white-hot streaks, a fraction of a dart's size
+    // and colorless like the gun — whose shot is whose reads instantly.
+    const BULLET_STREAK: f32 = 0.22;
+    for bullet in &game.bullets {
+        let dir = bullet.vel.normalize_or_zero();
+        segments.push(Segment::new(
+            bullet.pos - dir * BULLET_STREAK,
+            bullet.pos,
+            Vec4::new(1.0, 0.97, 0.88, 2.2),
+        ));
+    }
+
     for particle in &game.particles {
         let fade = (particle.life / particle.max_life).clamp(0.0, 1.0);
         let color = Vec4::new(
@@ -708,11 +720,12 @@ impl ArenaApp {
                 GameEvent::HealthSpawned(at) => audio.play_at(Sfx::HealthSpawn, at),
                 GameEvent::HealthPicked => audio.play(Sfx::HealthPickup),
                 GameEvent::BossRing(at) => audio.play_at(Sfx::BossRing, at),
+                GameEvent::Ricochet(at) => audio.play_at(Sfx::Ricochet, at),
             }
         }
     }
 
-    /// Full look direction (includes pitch) — the hitscan ray.
+    /// Full look direction (includes pitch) — slugs converge onto it.
     fn aim(&self) -> Vec3 {
         self.player.rotation() * Vec3::NEG_Z
     }

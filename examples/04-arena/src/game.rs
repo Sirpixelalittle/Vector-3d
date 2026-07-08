@@ -4,7 +4,7 @@
 //!
 //! The world is the same [`TriangleSoup`] the player collides with:
 //! enemies capsule-slide around pillars, bolts splash on geometry, the
-//! pistol's hitscan stops at walls, and enemies hold fire without line of
+//! pistol's slugs stop at walls, and enemies hold fire without line of
 //! sight. Cover works the same for both sides.
 
 use glam::{Vec3, Vec4, vec3, vec4};
@@ -17,12 +17,18 @@ const PLAYER_HIT_RADIUS: f32 = 0.55;
 /// standing in the open under fire still kills you.
 const IFRAME_SECONDS: f32 = 0.7;
 
-// --- the pistol (hitscan) ---
+// --- the pistol ---
 const FIRE_COOLDOWN: f32 = 0.24;
 pub const RECOIL_SECONDS: f32 = 0.22;
 const GUN_DAMAGE: f32 = 24.0;
 const GUN_RANGE: f32 = 70.0;
-/// Ray-to-center slack, so aiming near an enemy connects (crosshair feel).
+/// Slug speed — ~5× the fastest enemy bolt. Nothing alive can strafe out
+/// of a shot at arena ranges, so the old hitscan feel survives the switch
+/// to a real projectile (which is what lets the boss shell deflect it).
+const BULLET_SPEED: f32 = 95.0;
+/// Speed kept after glancing off the boss's sealed entrance shell.
+const RICOCHET_KEEP: f32 = 0.35;
+/// Path-to-center slack, so aiming near an enemy connects (crosshair feel).
 const AIM_ASSIST: f32 = 0.4;
 const GUN_KNOCKBACK: f32 = 0.6;
 
@@ -254,7 +260,20 @@ pub struct Bolt {
     damage: f32,
 }
 
-impl Bolt {
+/// The player's slug: tiny, white-hot, and fast enough to feel hitscan —
+/// but a real body in the world rather than a ray, so the boss's sealed
+/// entrance shell can visibly deflect it instead of silently eating 85%
+/// of the damage.
+#[derive(Debug, Clone, Copy)]
+pub struct Bullet {
+    pub pos: Vec3,
+    pub vel: Vec3,
+    life: f32,
+    /// Set once the boss shell has deflected this slug: spent metal. It
+    /// still flies and splashes, but wounds nothing and never bounces
+    /// again — otherwise a slow ricochet caught by the advancing shell
+    /// re-hits every frame and grinds the boss down.
+    spent: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -291,6 +310,8 @@ pub enum GameEvent {
     HealthPicked,
     /// The boss loosed a bolt ring from its open core.
     BossRing(Vec3),
+    /// A slug glanced off the boss's sealed entrance shell.
+    Ricochet(Vec3),
 }
 
 /// The medkit hovering at the arena center, waiting to be claimed.
@@ -315,6 +336,8 @@ pub struct Game {
     pub phase: Phase,
     pub enemies: Vec<Enemy>,
     pub bolts: Vec<Bolt>,
+    /// The player's slugs in flight (enemy shots are `bolts`).
+    pub bullets: Vec<Bullet>,
     pub particles: Vec<Particle>,
     /// Set on the frame the player takes damage (drives shake/flash).
     pub damage_flash: f32,
@@ -341,6 +364,7 @@ impl Game {
             },
             enemies: Vec::new(),
             bolts: Vec::new(),
+            bullets: Vec::new(),
             particles: Vec::new(),
             damage_flash: 0.0,
             iframes: 0.0,
@@ -378,6 +402,7 @@ impl Game {
         self.phase = Phase::Intermission { timer: 1.5 };
         self.enemies.clear();
         self.bolts.clear();
+        self.bullets.clear();
         self.spawn_queue.clear();
     }
 
@@ -391,7 +416,7 @@ impl Game {
     }
 
     /// `muzzle` is the world-space point where the viewmodel's barrel tip
-    /// appears on screen (computed by the renderer) — tracers start there
+    /// appears on screen (computed by the renderer) — slugs spawn there
     /// so they visually leave the gun, not the screen center.
     pub fn update(
         &mut self,
@@ -408,6 +433,7 @@ impl Game {
         self.recoil = (self.recoil - dt / RECOIL_SECONDS).max(0.0);
         self.update_particles(dt);
         self.update_bolts(dt, eye, soup);
+        self.update_bullets(dt, soup);
 
         match self.phase {
             Phase::GameOver => return,
@@ -428,7 +454,7 @@ impl Game {
         }
 
         if attack {
-            self.try_fire(eye, aim, muzzle, soup);
+            self.try_fire(eye, aim, muzzle);
         }
         self.update_enemies(dt, eye, soup);
         self.update_health_pack(dt, eye);
@@ -490,65 +516,120 @@ impl Game {
         });
     }
 
-    /// Fire the pistol: hitscan along `aim`, damaging the nearest enemy the
-    /// ray passes through (within aim assist). The ray stops at world
-    /// geometry — pillars are cover for both sides. Always kicks recoil +
-    /// muzzle flash so shots feel real even on a miss.
-    fn try_fire(&mut self, eye: Vec3, aim: Vec3, muzzle: Vec3, soup: &TriangleSoup) {
+    /// Fire the pistol: loose a slug from the barrel tip, converging onto
+    /// the eye ray so it lands where the crosshair points. Recoil and the
+    /// muzzle flash kick immediately; damage arrives when the slug does —
+    /// a few frames later at most, since it outruns everything alive.
+    fn try_fire(&mut self, eye: Vec3, aim: Vec3, muzzle: Vec3) {
         if self.fire_cooldown > 0.0 || matches!(self.phase, Phase::GameOver) {
             return;
         }
         self.fire_cooldown = FIRE_COOLDOWN;
         self.recoil = 1.0;
         self.events.push(GameEvent::Shot);
+        let target = eye + aim * GUN_RANGE;
+        self.bullets.push(Bullet {
+            pos: muzzle,
+            vel: (target - muzzle).normalize_or_zero() * BULLET_SPEED,
+            life: GUN_RANGE / BULLET_SPEED,
+            spent: false,
+        });
+    }
 
-        let wall_dist = soup.raycast(eye, aim, GUN_RANGE).unwrap_or(GUN_RANGE);
-        let mut best: Option<(usize, f32)> = None;
-        for (i, enemy) in self.enemies.iter().enumerate() {
-            if enemy.spawn_progress() < 1.0 {
-                continue;
-            }
-            let to = enemy.center() - eye;
-            let along = to.dot(aim);
-            if along <= 0.0 || along > wall_dist {
-                continue;
-            }
-            let miss = (to - aim * along).length();
-            if miss < enemy.kind.radius() + AIM_ASSIST
-                && best.is_none_or(|(_, d)| along < d)
-            {
-                best = Some((i, along));
-            }
+    /// Advance the player's slugs — swept like enemy bolts, so the speed
+    /// can't tunnel. A slug stops on the first enemy or wall in its path
+    /// (pillars are cover for both sides); the boss's sealed entrance
+    /// shell instead deflects it with a visible ricochet and only a
+    /// sliver of the damage.
+    fn update_bullets(&mut self, dt: f32, soup: &TriangleSoup) {
+        if matches!(self.phase, Phase::GameOver) {
+            return;
         }
+        const BULLET_SKIN: f32 = 0.02;
+        let mut i = 0;
+        while i < self.bullets.len() {
+            let mut bullet = self.bullets[i];
+            // Life burns on every path — a ricochet must never grant a
+            // slug immortality.
+            bullet.life -= dt;
+            if bullet.life <= 0.0 {
+                self.bullets.swap_remove(i);
+                continue;
+            }
+            let dir = bullet.vel.normalize_or_zero();
+            let step_len = bullet.vel.length() * dt;
+            let sweep = step_len + BULLET_SKIN;
+            let reach = soup.raycast(bullet.pos, dir, sweep).unwrap_or(sweep);
 
-        // The tracer starts at the renderer-supplied muzzle point (screen-
-        // aligned with the viewmodel's flash). The muzzle *flash* itself is
-        // drawn attached to the viewmodel in main.rs; no world-space sparks
-        // at the camera, which just smear across the view.
-        if let Some((i, along)) = best {
-            let hit_point = eye + aim * along;
-            tracer(&mut self.particles, muzzle, hit_point);
-            spark(&mut self.particles, &mut self.rng, hit_point, 5);
-            let enemy = &mut self.enemies[i];
-            // The boss's sealed shell deflects most damage during its
-            // entrance march, and it shrugs off knockback entirely — so
-            // it can't be shoved back into a wall and re-pinned.
-            let entering = enemy.kind == EnemyKind::Boss && enemy.boss_cycle_start.is_none();
-            let armor = if entering { BOSS_ENTRANCE_ARMOR } else { 1.0 };
-            enemy.hp -= GUN_DAMAGE * armor;
-            enemy.hit_flash = 1.0;
-            if enemy.kind != EnemyKind::Boss {
-                enemy.pos += aim * GUN_KNOCKBACK;
+            // Nearest materialized enemy whose assist-padded sphere the
+            // sweep enters before it reaches world geometry. Spent slugs
+            // are inert to enemies — splash on walls only.
+            let mut best: Option<(usize, f32)> = None;
+            if !bullet.spent {
+                for (idx, enemy) in self.enemies.iter().enumerate() {
+                    if enemy.spawn_progress() < 1.0 {
+                        continue;
+                    }
+                    let radius = enemy.kind.radius() + AIM_ASSIST;
+                    if let Some(t) = sphere_entry(bullet.pos, dir, reach, enemy.center(), radius)
+                        && best.is_none_or(|(_, d)| t < d)
+                    {
+                        best = Some((idx, t));
+                    }
+                }
             }
-            if enemy.hp <= 0.0 {
-                self.kill(i);
+
+            if let Some((idx, t)) = best {
+                let hit = bullet.pos + dir * t;
+                let enemy = &mut self.enemies[idx];
+                enemy.hit_flash = 1.0;
+                // The boss's sealed shell deflects slugs during its
+                // entrance march, and it shrugs off knockback entirely —
+                // so it can't be shoved back into a wall and re-pinned.
+                let entering =
+                    enemy.kind == EnemyKind::Boss && enemy.boss_cycle_start.is_none();
+                if entering {
+                    enemy.hp -= GUN_DAMAGE * BOSS_ENTRANCE_ARMOR;
+                    let center = enemy.center();
+                    let normal = (hit - center).normalize_or_zero();
+                    bullet.pos = hit + normal * BULLET_SKIN;
+                    let approach = bullet.vel.dot(normal);
+                    if approach < 0.0 {
+                        bullet.vel = (bullet.vel - 2.0 * approach * normal) * RICOCHET_KEEP;
+                    }
+                    bullet.spent = true;
+                    spark(&mut self.particles, &mut self.rng, hit, 3);
+                    self.events.push(GameEvent::Ricochet(hit));
+                    if self.enemies[idx].hp <= 0.0 {
+                        self.kill(idx);
+                    }
+                    self.bullets[i] = bullet;
+                    i += 1;
+                } else {
+                    enemy.hp -= GUN_DAMAGE;
+                    if enemy.kind != EnemyKind::Boss {
+                        enemy.pos += dir * GUN_KNOCKBACK;
+                    }
+                    let dead = enemy.hp <= 0.0;
+                    spark(&mut self.particles, &mut self.rng, hit, 5);
+                    if dead {
+                        self.kill(idx);
+                    }
+                    self.bullets.swap_remove(i);
+                }
+                continue;
             }
-        } else {
-            let end = eye + aim * wall_dist;
-            tracer(&mut self.particles, muzzle, end);
-            if wall_dist < GUN_RANGE {
-                spark(&mut self.particles, &mut self.rng, end, 4);
+
+            if reach < sweep {
+                // World geometry: splash and die.
+                spark(&mut self.particles, &mut self.rng, bullet.pos + dir * reach, 4);
+                self.bullets.swap_remove(i);
+                continue;
             }
+
+            bullet.pos += dir * step_len;
+            self.bullets[i] = bullet;
+            i += 1;
         }
     }
 
@@ -903,16 +984,21 @@ fn spark(particles: &mut Vec<Particle>, rng: &mut Lcg, at: Vec3, count: usize) {
     }
 }
 
-/// A hot tracer segment from muzzle to hit point that flashes and dies.
-fn tracer(particles: &mut Vec<Particle>, from: Vec3, to: Vec3) {
-    particles.push(Particle {
-        pos: (from + to) * 0.5,
-        vel: Vec3::ZERO,
-        axis: (to - from) * 0.5,
-        color: vec4(1.0, 0.95, 0.7, 1.6),
-        life: 0.06,
-        max_life: 0.06,
-    });
+/// Earliest distance along unit `dir` from `origin`, within `max`, where
+/// the ray enters the sphere — 0.0 if it starts inside. None on a miss.
+fn sphere_entry(origin: Vec3, dir: Vec3, max: f32, center: Vec3, radius: f32) -> Option<f32> {
+    let oc = origin - center;
+    let c = oc.length_squared() - radius * radius;
+    if c <= 0.0 {
+        return Some(0.0);
+    }
+    let b = oc.dot(dir);
+    let disc = b * b - c;
+    if disc < 0.0 {
+        return None;
+    }
+    let t = -b - disc.sqrt();
+    (t >= 0.0 && t <= max).then_some(t)
 }
 
 /// Tiny deterministic xorshift* — no rand dependency, reproducible demos.
@@ -991,6 +1077,17 @@ mod tests {
         }
     }
 
+    /// Step (without firing) until every slug in flight has landed or
+    /// expired — they outrun everything, so this is a handful of frames.
+    fn settle_bullets(game: &mut Game, soup: &TriangleSoup) {
+        for _ in 0..90 {
+            if game.bullets.is_empty() {
+                break;
+            }
+            game.update(1.0 / 60.0, EYE, AIM, MUZ, false, soup);
+        }
+    }
+
     #[test]
     fn every_tenth_wave_is_a_lone_boss() {
         assert_eq!(compose_wave(10), vec![EnemyKind::Boss]);
@@ -1060,7 +1157,7 @@ mod tests {
     }
 
     #[test]
-    fn boss_shell_deflects_damage_during_entrance() {
+    fn boss_shell_ricochets_slugs_during_entrance() {
         let mut game = Game::new();
         game.phase = Phase::Fighting;
         game.wave = 10;
@@ -1068,12 +1165,63 @@ mod tests {
         game.enemies.push(spawned(EnemyKind::Boss, vec3(0.0, 0.0, -8.0), 10));
         let full = EnemyKind::Boss.max_hp();
         game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
+        for _ in 0..30 {
+            if game.enemies[0].hp < full {
+                break;
+            }
+            game.update(1.0 / 60.0, EYE, AIM, MUZ, false, &open_soup());
+        }
         let taken = full - game.enemies[0].hp;
         assert!(
             (taken - GUN_DAMAGE * BOSS_ENTRANCE_ARMOR).abs() < 1e-3,
             "entrance shell should deflect: took {taken}"
         );
+        // The slug glances off instead of dying: still flying, back the
+        // way it came, with the event that drives the ricochet ping.
+        assert_eq!(game.bullets.len(), 1, "slug ricochets instead of dying");
+        assert!(game.bullets[0].vel.z > 0.0, "bounced back out");
+        assert!(
+            game.events.iter().any(|e| matches!(e, GameEvent::Ricochet(_))),
+            "ricochet event fired"
+        );
         assert!(game.enemies[0].boss_cycle_start.is_none(), "still entering");
+
+        // A spent slug is inert: even if the advancing shell swallows it,
+        // it never wounds again and burns out on schedule. (A trapped
+        // ricochet used to re-hit every frame and grind the boss down.)
+        let hp_after_glance = game.enemies[0].hp;
+        for _ in 0..150 {
+            game.update(1.0 / 60.0, EYE, AIM, MUZ, false, &open_soup());
+        }
+        assert_eq!(
+            game.enemies[0].hp, hp_after_glance,
+            "one glance, one tick — spent metal wounds nothing"
+        );
+        assert!(game.bullets.is_empty(), "spent slug expired");
+    }
+
+    #[test]
+    fn arrived_boss_takes_full_damage_and_eats_the_slug() {
+        let mut game = Game::new();
+        game.phase = Phase::Fighting;
+        game.wave = 10;
+        let mut boss = spawned(EnemyKind::Boss, vec3(0.0, 0.0, -8.0), 10);
+        // Materialized (past the spawn ramp — targetable), arrived, and
+        // 0.1s into its cycle: the closed window, so it stalks.
+        boss.boss_cycle_start = Some(boss.age - 0.1);
+        game.enemies.push(boss);
+        game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
+        settle_bullets(&mut game, &open_soup());
+        let taken = EnemyKind::Boss.max_hp() - game.enemies[0].hp;
+        assert!(
+            (taken - GUN_DAMAGE).abs() < 1e-3,
+            "full damage once it takes the stage: {taken}"
+        );
+        assert!(game.bullets.is_empty(), "slug consumed, not deflected");
+        assert!(
+            !game.events.iter().any(|e| matches!(e, GameEvent::Ricochet(_))),
+            "no ricochet off an arrived boss"
+        );
     }
 
     #[test]
@@ -1082,12 +1230,20 @@ mod tests {
         game.phase = Phase::Fighting;
         game.wave = 10;
         // Arrived and closed, so it stalks (not planted) — isolating that
-        // the gun's knockback doesn't shove it back toward a wall.
+        // the gun's knockback doesn't shove it back toward a wall. Age
+        // stays past the spawn ramp so the slug can actually connect.
         let mut boss = spawned(EnemyKind::Boss, vec3(0.0, 0.0, -8.0), 10);
-        boss.boss_cycle_start = Some(0.0);
-        boss.age = 0.1;
+        boss.boss_cycle_start = Some(boss.age - 0.1);
         game.enemies.push(boss);
+        let full = EnemyKind::Boss.max_hp();
         game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
+        for _ in 0..30 {
+            if game.enemies[0].hp < full {
+                break;
+            }
+            game.update(1.0 / 60.0, EYE, AIM, MUZ, false, &open_soup());
+        }
+        assert!(game.enemies[0].hp < full, "slug landed");
         // It steps toward the player (−Z→ +Z a hair), never away from it:
         // knockback (which points along −Z aim) would push z more negative.
         assert!(game.enemies[0].pos.z > -8.05, "not shoved backward");
@@ -1178,13 +1334,14 @@ mod tests {
         game.enemies.push(spawned(EnemyKind::Shard, vec3(0.0, 0.0, -3.0), 1));
 
         game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
+        assert!(game.recoil() > 0.9, "shot kicks recoil");
+        settle_bullets(&mut game, &open_soup());
         // The near shard (30hp) takes 24 and survives; the far sentinel is
         // shadowed by it and untouched.
         let shard = game.enemies.iter().find(|e| e.kind == EnemyKind::Shard).unwrap();
         assert!((shard.hp - 6.0).abs() < 1e-3);
         let sentinel = game.enemies.iter().find(|e| e.kind == EnemyKind::Sentinel).unwrap();
         assert_eq!(sentinel.hp, 100.0);
-        assert!(game.recoil() > 0.9, "shot kicks recoil");
     }
 
     #[test]
@@ -1195,19 +1352,23 @@ mod tests {
         // Two shots one frame apart: the cooldown blocks the second.
         game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
         game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
+        assert_eq!(game.bullets.len(), 1, "cooldown blocks the second slug");
+        settle_bullets(&mut game, &open_soup());
         let sentinel = &game.enemies[0];
         assert!((sentinel.hp - (100.0 - GUN_DAMAGE)).abs() < 1e-3);
     }
 
     #[test]
-    fn missing_still_recoils_and_leaves_a_tracer() {
+    fn missing_still_recoils_and_the_slug_flies_past() {
         let mut game = Game::new();
         game.phase = Phase::Fighting;
         game.enemies.push(spawned(EnemyKind::Shard, vec3(20.0, 0.0, 0.0), 1)); // off to the side
         game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
-        assert_eq!(game.enemies[0].hp, 30.0, "whiff");
         assert!(game.recoil() > 0.9);
-        assert!(!game.particles.is_empty(), "muzzle flash + tracer");
+        assert_eq!(game.bullets.len(), 1, "slug in flight");
+        settle_bullets(&mut game, &open_soup());
+        assert!(game.bullets.is_empty(), "slug expired at range");
+        assert_eq!(game.enemies[0].hp, 30.0, "whiff");
     }
 
     #[test]
@@ -1254,10 +1415,12 @@ mod tests {
         let mut game = Game::new();
         game.phase = Phase::Fighting;
         game.enemies.push(spawned(EnemyKind::Sentinel, vec3(0.0, 0.0, -8.0), 1));
-        // Wall at z = -5, enemy behind it: the shot splashes on the wall.
+        // Wall at z = -5, enemy behind it: the slug splashes on the wall.
         game.update(0.016, EYE, AIM, MUZ, true, &wall_at_z(-5.0));
+        settle_bullets(&mut game, &wall_at_z(-5.0));
+        assert!(game.bullets.is_empty(), "slug died on the wall");
         assert_eq!(game.enemies[0].hp, 100.0, "cover protects the enemy");
-        assert!(!game.particles.is_empty(), "wall impact spark + tracer");
+        assert!(!game.particles.is_empty(), "wall impact spark");
     }
 
     #[test]
@@ -1353,11 +1516,20 @@ mod tests {
         game.kills_toward_pack = KILLS_PER_PACK - 1;
         game.hp = 40.0;
         // Fight away from the center so the spawn isn't instantly grabbed.
+        // The muzzle must ride with the eye — the slug physically spawns
+        // there (the old hitscan never cared).
         let away = vec3(0.0, 1.55, 8.0);
+        let muz = away + vec3(0.15, -0.2, -0.6);
         let mut shard = spawned(EnemyKind::Shard, vec3(0.0, 0.0, 6.0), 1);
         shard.hp = 1.0;
         game.enemies.push(shard);
-        game.update(0.016, away, AIM, MUZ, true, &open_soup());
+        game.update(0.016, away, AIM, muz, true, &open_soup());
+        for _ in 0..30 {
+            if game.enemies.is_empty() {
+                break;
+            }
+            game.update(1.0 / 60.0, away, AIM, muz, false, &open_soup());
+        }
         let pack = game.health_pack.expect("pack spawned on the 10th kill");
         assert_eq!(pack.pos, Vec3::ZERO);
         assert!(
@@ -1406,6 +1578,7 @@ mod tests {
         shard.hp = 1.0;
         game.enemies.push(shard);
         game.update(0.016, EYE, AIM, MUZ, true, &open_soup());
+        settle_bullets(&mut game, &open_soup());
         // Still just the one pack; the earned spawn is banked in the counter.
         assert_eq!(game.kills_toward_pack, KILLS_PER_PACK);
         assert!(

@@ -34,6 +34,7 @@ pub enum Sfx {
     HealthPickup,
     BossRing,
     Dash,
+    Ricochet,
 }
 
 pub struct AudioEngine {
@@ -54,6 +55,7 @@ struct Bank {
     health_pickup: StaticSoundData,
     boss_ring: StaticSoundData,
     dash: StaticSoundData,
+    ricochet: StaticSoundData,
 }
 
 impl Bank {
@@ -70,6 +72,7 @@ impl Bank {
             Sfx::HealthPickup => &self.health_pickup,
             Sfx::BossRing => &self.boss_ring,
             Sfx::Dash => &self.dash,
+            Sfx::Ricochet => &self.ricochet,
         }
     }
 }
@@ -97,6 +100,7 @@ impl AudioEngine {
                 health_pickup: synth::health_pickup(),
                 boss_ring: synth::boss_ring(),
                 dash: synth::dash(),
+                ricochet: synth::ricochet(),
             },
         })
     }
