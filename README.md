@@ -123,7 +123,7 @@ clips know nothing about what they animate.
 | `crates/vex-render`  | wgpu passes: occluders, lines, HDR bloom/CRT post   |
 | `crates/vex-engine`  | window shell (native + web), input, cameras, RON scenes, capsule collision + raycasts |
 | `crates/vex-convert` | glTF → `.vec` converter (CLI and library)           |
-| `crates/vex-audio`   | 3D spatial audio (kira); all SFX synthesized in code |
+| `crates/vex-audio`   | 3D spatial audio (kira) + synth toolkit; games own their sound banks |
 | `examples/01-cube`   | minimal pipeline: lines on black, fly camera        |
 | `examples/02-viewer` | model viewer — drop in `.vec`/`.gltf`, hot-reloads on save |
 | `examples/03-corridor` | FPS walkthrough of the reference aesthetic        |

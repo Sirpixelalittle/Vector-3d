@@ -12,11 +12,13 @@
 //!           Esc releases.
 
 mod game;
+mod sounds;
 
 use anyhow::{Context, Result};
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4, vec2, vec3};
 use game::{EnemyKind, Game, GameEvent, Phase};
-use vex_audio::{AudioEngine, Sfx};
+use sounds::Sounds;
+use vex_audio::AudioEngine;
 use vex_core::{EdgeKind, Frustum, Segment, VecModel, font, phosphor};
 use vex_engine::{App, BakedScene, FpsController, Input, KeyCode, MouseButton, TriangleSoup};
 use vex_render::{
@@ -604,6 +606,8 @@ struct ArenaApp {
     /// what browser autoplay policies require before audio may start.
     audio: Option<AudioEngine>,
     audio_failed: bool,
+    /// The arena's own sound bank, handed to the engine to play.
+    sounds: Sounds,
 }
 
 impl ArenaApp {
@@ -687,6 +691,7 @@ impl ArenaApp {
             time: 0.0,
             audio: None,
             audio_failed: false,
+            sounds: Sounds::synth(),
         })
     }
 
@@ -710,17 +715,17 @@ impl ArenaApp {
         audio.set_listener(self.player.eye(), self.player.rotation());
         for event in events {
             match event {
-                GameEvent::Shot => audio.play(Sfx::Shot),
-                GameEvent::BoltFired(at) => audio.play_at(Sfx::BoltFire, at),
-                GameEvent::BoltImpact(at) => audio.play_at(Sfx::BoltImpact, at),
-                GameEvent::EnemyDied(at) => audio.play_at(Sfx::EnemyDeath, at),
-                GameEvent::PlayerHit => audio.play(Sfx::PlayerHit),
-                GameEvent::WaveStarted(_) => audio.play(Sfx::WaveStart),
-                GameEvent::GameOver => audio.play(Sfx::GameOver),
-                GameEvent::HealthSpawned(at) => audio.play_at(Sfx::HealthSpawn, at),
-                GameEvent::HealthPicked => audio.play(Sfx::HealthPickup),
-                GameEvent::BossRing(at) => audio.play_at(Sfx::BossRing, at),
-                GameEvent::Ricochet(at) => audio.play_at(Sfx::Ricochet, at),
+                GameEvent::Shot => audio.play(&self.sounds.shot),
+                GameEvent::BoltFired(at) => audio.play_at(&self.sounds.bolt_fire, at),
+                GameEvent::BoltImpact(at) => audio.play_at(&self.sounds.bolt_impact, at),
+                GameEvent::EnemyDied(at) => audio.play_at(&self.sounds.enemy_death, at),
+                GameEvent::PlayerHit => audio.play(&self.sounds.player_hit),
+                GameEvent::WaveStarted(_) => audio.play(&self.sounds.wave_start),
+                GameEvent::GameOver => audio.play(&self.sounds.game_over),
+                GameEvent::HealthSpawned(at) => audio.play_at(&self.sounds.health_spawn, at),
+                GameEvent::HealthPicked => audio.play(&self.sounds.health_pickup),
+                GameEvent::BossRing(at) => audio.play_at(&self.sounds.boss_ring, at),
+                GameEvent::Ricochet(at) => audio.play_at(&self.sounds.ricochet, at),
             }
         }
     }
@@ -975,7 +980,7 @@ impl App for ArenaApp {
         if self.player.just_dashed()
             && let Some(audio) = self.audio.as_mut()
         {
-            audio.play(Sfx::Dash);
+            audio.play(&self.sounds.dash);
         }
         let attack = input.is_captured() && input.is_mouse_just_pressed(MouseButton::Left);
         let (eye, aim) = (self.player.eye(), self.aim());
