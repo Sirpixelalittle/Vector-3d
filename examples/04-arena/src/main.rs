@@ -1432,6 +1432,35 @@ fn screenshot(out: &Path, args: &[String]) -> Result<()> {
         let age: f32 = pack.parse().context("--pack expects an age in seconds")?;
         app.game.force_health_pack(age);
     }
+    // Stage incoming fire for threat-band shots: --bolt KIND,AZIMUTH,DIST
+    // (azimuth degrees relative to facing: 90 = from the right, 180 =
+    // behind; repeatable). The frame renders without stepping the sim, so
+    // the staged bolts hang mid-flight and nothing hits the player.
+    for pair in args.windows(2) {
+        if pair[0] != "--bolt" {
+            continue;
+        }
+        let mut parts = pair[1].split(',');
+        let (kind, az, dist) = (
+            parts.next().context("--bolt expects KIND,AZIMUTH,DIST")?,
+            parts.next().context("--bolt missing azimuth")?,
+            parts.next().context("--bolt missing distance")?,
+        );
+        let kind = match kind {
+            "shard" => EnemyKind::Shard,
+            "sentinel" => EnemyKind::Sentinel,
+            "boss" => EnemyKind::Boss,
+            other => anyhow::bail!("unknown bolt kind {other}"),
+        };
+        let az = az.parse::<f32>().context("--bolt azimuth (deg)")?.to_radians();
+        let dist: f32 = dist.parse().context("--bolt distance")?;
+        let eye = app.player.eye();
+        let fwd = app.aim();
+        let fwd = vec3(fwd.x, 0.0, fwd.z).normalize_or_zero();
+        let right = fwd.cross(Vec3::Y).normalize_or_zero();
+        let from = eye + (fwd * az.cos() + right * az.sin()) * dist;
+        app.game.force_bolt(kind, from, eye);
+    }
 
     let gpu = Gpu::headless()?;
     let target = HeadlessTarget::new(&gpu.device, width, height);

@@ -406,6 +406,21 @@ impl Game {
         self.spawn_queue.clear();
     }
 
+    /// Inject a bolt flying at `eye` from `pos`, colored and tuned like
+    /// `kind`'s real fire (staged threat-band screenshots; native only).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn force_bolt(&mut self, kind: EnemyKind, pos: Vec3, eye: Vec3) {
+        let tint = kind.color();
+        let speed = bolt_speed(self.wave);
+        self.bolts.push(Bolt {
+            pos,
+            vel: (eye - pos).normalize_or_zero() * speed,
+            life: BOLT_RANGE / speed,
+            color: vec4(tint.x, tint.y, tint.z, 1.7),
+            damage: bolt_damage(self.wave),
+        });
+    }
+
     /// Spawn the medkit immediately (headless screenshots; native only).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn force_health_pack(&mut self, age: f32) {
