@@ -449,6 +449,41 @@ fn ring_segments(center: Vec3, radius: f32, color: Vec4) -> Vec<Segment> {
 
 // ------------------------------------------------------------------- hud --
 
+/// Screen-edge threat bands: three nested border lines per warned edge,
+/// dim and additive — bloom melts them into a soft glow the color of the
+/// incoming fire. Left/right edges mean fire from that side; the bottom
+/// band means behind you (bolts ahead are their own indicator).
+fn threat_segments(viewport: Vec2, threats: &game::ThreatEdges) -> Vec<Segment> {
+    // Inset per band and its share of the edge's urgency: the outermost
+    // line burns hottest, the inner ones feather the glow inward.
+    const BANDS: [(f32, f32); 3] = [(4.0, 0.55), (11.0, 0.33), (18.0, 0.18)];
+    let mut out = Vec::new();
+    let (w, h) = (viewport.x, viewport.y);
+    for (edge, warn) in threats.0.iter().enumerate() {
+        if warn.w < 0.02 {
+            continue;
+        }
+        for (inset, share) in BANDS {
+            let color = Vec4::new(warn.x, warn.y, warn.z, warn.w * share);
+            let (a, b) = match edge {
+                // Left / right: a vertical band spanning mid-screen.
+                0 => (vec3(inset, h * 0.16, 0.0), vec3(inset, h * 0.84, 0.0)),
+                1 => (
+                    vec3(w - inset, h * 0.16, 0.0),
+                    vec3(w - inset, h * 0.84, 0.0),
+                ),
+                // Behind: along the bottom, clear of the HUD text.
+                _ => (
+                    vec3(w * 0.24, inset, 0.0),
+                    vec3(w * 0.76, inset, 0.0),
+                ),
+            };
+            out.push(Segment::new(a, b, color));
+        }
+    }
+    out
+}
+
 /// The start screen in HUD space: title block, buttons that swell and
 /// brighten under the cursor, the options slider, and control hints.
 /// Geometry comes from the same [`menu::layout`] the hit tests use.
@@ -1006,6 +1041,8 @@ impl ArenaApp {
     }
 
     fn draw_game(&mut self, frame: &Frame) {
+        // Computed before the renderers borrow (aim() takes &self).
+        let threats = game::threat_edges(self.player.eye(), self.aim(), &self.game.bolts);
         let Some(renderers) = self.renderers.as_mut() else {
             return;
         };
@@ -1151,7 +1188,12 @@ impl ArenaApp {
         renderers.hud_lines.set_segments(
             &frame.gpu.device,
             &frame.gpu.queue,
-            &hud_segments(frame.viewport, &self.game, self.player.dash_ready_fraction()),
+            &{
+                let mut hud =
+                    hud_segments(frame.viewport, &self.game, self.player.dash_ready_fraction());
+                hud.extend(threat_segments(frame.viewport, &threats));
+                hud
+            },
         );
         let hud_uniform = CameraUniform::new(
             glam::camera::rh::proj::directx::orthographic(

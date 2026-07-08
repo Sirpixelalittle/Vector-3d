@@ -984,6 +984,64 @@ fn spark(particles: &mut Vec<Particle>, rng: &mut Lcg, at: Vec3, count: usize) {
     }
 }
 
+// --- screen-edge threat warning ---------------------------------------
+
+/// Bolts closer than this start warming the screen edge they approach
+/// from; the band brightens as they close.
+const THREAT_RANGE: f32 = 12.0;
+
+/// How hot each screen edge should burn this frame: `xyz` is the blended
+/// color of the bolts bearing down from that side, `w` their combined
+/// urgency 0..1. `[left, right, rear]` — bolts ahead get no entry, the
+/// dart itself is the indicator there.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ThreatEdges(pub [Vec4; 3]);
+
+/// Which edges to warm for the bolts currently in flight. Pure: eye and
+/// flattened forward in, per-edge color+urgency out. Only *closing* bolts
+/// within [`THREAT_RANGE`] count, weighted by proximity squared so the
+/// band surges just before impact.
+pub fn threat_edges(eye: Vec3, forward: Vec3, bolts: &[Bolt]) -> ThreatEdges {
+    let fwd = vec3(forward.x, 0.0, forward.z).normalize_or_zero();
+    let right = fwd.cross(Vec3::Y).normalize_or_zero();
+    let mut acc = [Vec4::ZERO; 3];
+    for bolt in bolts {
+        let offset = eye - bolt.pos;
+        let dist = offset.length();
+        if dist > THREAT_RANGE || bolt.vel.dot(offset) <= 0.0 {
+            continue;
+        }
+        let toward = vec3(-offset.x, 0.0, -offset.z).normalize_or_zero();
+        let (f, r) = (toward.dot(fwd), toward.dot(right));
+        let edge = if f >= r.abs() {
+            continue; // ahead: the dart is on screen already
+        } else if -f >= r.abs() {
+            2 // behind
+        } else if r > 0.0 {
+            1 // right
+        } else {
+            0 // left
+        };
+        let closeness = 1.0 - dist / THREAT_RANGE;
+        let urgency = closeness * closeness;
+        acc[edge] += Vec4::new(
+            bolt.color.x * urgency,
+            bolt.color.y * urgency,
+            bolt.color.z * urgency,
+            urgency,
+        );
+    }
+    // Normalize color by total weight; clamp urgency so stacked volleys
+    // saturate instead of blooming out.
+    for slot in &mut acc {
+        if slot.w > 1e-4 {
+            let w = slot.w;
+            *slot = Vec4::new(slot.x / w, slot.y / w, slot.z / w, w.min(1.0));
+        }
+    }
+    ThreatEdges(acc)
+}
+
 /// Earliest distance along unit `dir` from `origin`, within `max`, where
 /// the ray enters the sphere — 0.0 if it starts inside. None on a miss.
 fn sphere_entry(origin: Vec3, dir: Vec3, max: f32, center: Vec3, radius: f32) -> Option<f32> {
@@ -1086,6 +1144,66 @@ mod tests {
             }
             game.update(1.0 / 60.0, EYE, AIM, MUZ, false, soup);
         }
+    }
+
+    /// A bolt at `pos` flying straight at the player's eye.
+    fn incoming(pos: Vec3, color: Vec4) -> Bolt {
+        Bolt {
+            pos,
+            vel: (EYE - pos).normalize() * 14.0,
+            life: 3.0,
+            color,
+            damage: 10.0,
+        }
+    }
+
+    #[test]
+    fn threat_edges_map_direction_and_skip_the_visible_front() {
+        // Facing -Z: a bolt from +X is on the right, -X left, +Z behind,
+        // -Z dead ahead (no warning — you can see that one).
+        let magenta = vec4(1.0, 0.2, 0.9, 2.0);
+        let from_right = [incoming(EYE + vec3(8.0, 0.0, 0.0), magenta)];
+        let edges = threat_edges(EYE, AIM, &from_right);
+        assert_eq!(edges.0[0].w, 0.0, "left dark");
+        assert!(edges.0[1].w > 0.0, "right lit");
+        assert!((edges.0[1].x - 1.0).abs() < 1e-4, "carries the bolt hue");
+
+        let from_left = [incoming(EYE + vec3(-8.0, 0.0, 0.0), magenta)];
+        assert!(threat_edges(EYE, AIM, &from_left).0[0].w > 0.0);
+
+        let from_behind = [incoming(EYE + vec3(0.0, 0.0, 8.0), magenta)];
+        assert!(threat_edges(EYE, AIM, &from_behind).0[2].w > 0.0);
+
+        let from_ahead = [incoming(EYE + vec3(0.0, 0.0, -8.0), magenta)];
+        let ahead = threat_edges(EYE, AIM, &from_ahead);
+        assert!(ahead.0.iter().all(|e| e.w == 0.0), "front stays clean");
+    }
+
+    #[test]
+    fn threat_edges_ignore_receding_and_distant_bolts() {
+        let color = vec4(1.0, 0.6, 0.2, 2.0);
+        // Flying away from the player: no warning even though it's close.
+        let receding = [Bolt {
+            pos: EYE + vec3(4.0, 0.0, 0.0),
+            vel: vec3(10.0, 0.0, 0.0),
+            life: 3.0,
+            color,
+            damage: 10.0,
+        }];
+        assert!(threat_edges(EYE, AIM, &receding).0.iter().all(|e| e.w == 0.0));
+
+        // Closing but beyond the warning range.
+        let far = [incoming(EYE + vec3(THREAT_RANGE + 5.0, 0.0, 0.0), color)];
+        assert!(threat_edges(EYE, AIM, &far).0.iter().all(|e| e.w == 0.0));
+    }
+
+    #[test]
+    fn threat_urgency_rises_as_the_bolt_closes() {
+        let color = vec4(1.0, 0.6, 0.2, 2.0);
+        let near = threat_edges(EYE, AIM, &[incoming(EYE + vec3(3.0, 0.0, 0.0), color)]);
+        let far = threat_edges(EYE, AIM, &[incoming(EYE + vec3(9.0, 0.0, 0.0), color)]);
+        assert!(near.0[1].w > far.0[1].w, "closer burns hotter");
+        assert!(near.0[1].w <= 1.0, "clamped");
     }
 
     #[test]
