@@ -66,6 +66,8 @@ pub fn run(title: &str, app: impl App + 'static) -> Result<()> {
         last_frame: None,
         fps_accum: 0.0,
         fps_frames: 0,
+        #[cfg(target_arch = "wasm32")]
+        stray_cursor_moves: 0,
     };
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -104,6 +106,13 @@ struct Shell<A: App> {
     last_frame: Option<Instant>,
     fps_accum: f32,
     fps_frames: u32,
+    /// Web only: consecutive cursor *position* changes seen while we
+    /// believe the pointer is locked. A locked pointer reports a frozen
+    /// position, so movement here means the browser revoked the lock
+    /// behind our back (its Esc handling eats the keydown) — after a
+    /// short debounce we release our side so the next click re-grabs.
+    #[cfg(target_arch = "wasm32")]
+    stray_cursor_moves: u8,
 }
 
 /// Everything after window creation: surface, adapter, device, swapchain.
@@ -190,6 +199,10 @@ impl<A: App> Shell<A> {
         }
         gfx.window.set_cursor_visible(!captured);
         self.input.captured = captured;
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.stray_cursor_moves = 0;
+        }
     }
 
     fn update_fps_title(&mut self, dt: f32) {
@@ -289,7 +302,27 @@ impl<A: App> ApplicationHandler for Shell<A> {
             WindowEvent::Resized(size) => self.resize(size.width, size.height),
             WindowEvent::Focused(false) => self.set_capture(false),
             WindowEvent::CursorMoved { position, .. } => {
-                self.input.cursor = Vec2::new(position.x as f32, position.y as f32);
+                let position = Vec2::new(position.x as f32, position.y as f32);
+                // Web: the browser can revoke pointer lock behind our back
+                // (its own Esc handling exits the lock and eats the
+                // keydown). We'd then think we're capturing while a free,
+                // invisible cursor drifts — and mouse-look dies in one
+                // direction the moment it rests against the window edge.
+                // A locked pointer reports a frozen position, so movement
+                // while "captured" proves the lock is gone: release after
+                // a short debounce (the grab request is async on the web,
+                // so the first events after a capturing click are noise)
+                // and let the next click re-grab. Native grabs can't be
+                // silently revoked.
+                #[cfg(target_arch = "wasm32")]
+                if self.input.captured && position != self.input.cursor {
+                    self.stray_cursor_moves += 1;
+                    if self.stray_cursor_moves >= 3 {
+                        log::info!("pointer lock revoked by the browser; releasing capture");
+                        self.set_capture(false);
+                    }
+                }
+                self.input.cursor = position;
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 // The capturing click is consumed; everything after that
