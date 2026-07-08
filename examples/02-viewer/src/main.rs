@@ -7,7 +7,7 @@
 //!                  [--size WxH] [--smooth] [--yaw R] [--pitch R] [--zoom F]
 //!
 //! Keys: left-click + mouse orbits (Esc releases), scroll zooms,
-//!       [S] toggles smooth silhouette-candidate edges, [R] reframes.
+//!       \[S\] toggles smooth silhouette-candidate edges, \[R\] reframes.
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -24,7 +24,7 @@ use vex_render::{
 
 const LINE_WIDTH_PX: f32 = 1.6;
 const FOG_DENSITY: f32 = 0.02;
-/// Smooth silhouette candidates, shown dim blue by the [S] debug view.
+/// Smooth silhouette candidates, shown dim blue by the \[S\] debug view.
 const SMOOTH_DEBUG_INTENSITY: f32 = 0.16;
 const RELOAD_POLL_SECONDS: f32 = 0.5;
 

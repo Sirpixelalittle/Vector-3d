@@ -8,7 +8,7 @@
 //!                  [--yaw DEG] [--pitch DEG] [--wave N] [--pack AGE]
 //!
 //! Controls: click captures · WASD moves · SPACE/SHIFT dashes (10 s
-//!           cooldown) · left click fires · [R] restarts · [C] CRT ·
+//!           cooldown) · left click fires · \[R\] restarts · \[C\] CRT ·
 //!           Esc releases.
 
 mod game;
