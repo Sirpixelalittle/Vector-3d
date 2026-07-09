@@ -160,17 +160,29 @@ impl BakedScene {
     /// View-dependent silhouette segments for one instance (world space,
     /// instance tint/intensity applied). Call for visible instances only.
     pub fn instance_silhouettes(&self, instance: &BakedInstance, eye: Vec3) -> Vec<Segment> {
-        self.models[instance.model]
-            .silhouette_segments(instance.transform, eye, instance.intensity)
-            .into_iter()
-            .map(|segment| {
-                let rgb = segment.color.truncate() * instance.tint;
-                Segment {
-                    color: Vec4::new(rgb.x, rgb.y, rgb.z, segment.color.w),
-                    ..segment
-                }
-            })
-            .collect()
+        let mut segments = Vec::new();
+        self.instance_silhouettes_into(instance, eye, &mut segments);
+        segments
+    }
+
+    /// Append one instance's visible silhouettes to a shared frame buffer.
+    pub fn instance_silhouettes_into(
+        &self,
+        instance: &BakedInstance,
+        eye: Vec3,
+        out: &mut Vec<Segment>,
+    ) {
+        let start = out.len();
+        self.models[instance.model].silhouette_segments_into(
+            instance.transform,
+            eye,
+            instance.intensity,
+            out,
+        );
+        for segment in &mut out[start..] {
+            let rgb = segment.color.truncate() * instance.tint;
+            segment.color = Vec4::new(rgb.x, rgb.y, rgb.z, segment.color.w);
+        }
     }
 }
 

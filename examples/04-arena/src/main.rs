@@ -148,9 +148,11 @@ impl Weapon {
                 ..s
             })
             .collect();
-        segments.extend(
-            self.model
-                .silhouette_segments(placement, Vec3::ZERO, WEAPON_GLOW),
+        self.model.silhouette_segments_into(
+            placement,
+            Vec3::ZERO,
+            WEAPON_GLOW,
+            &mut segments,
         );
         let vertices: Vec<Vec3> = self
             .model

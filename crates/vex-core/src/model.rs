@@ -131,25 +131,45 @@ impl VecModel {
         eye_world: Vec3,
         intensity_scale: f32,
     ) -> Vec<Segment> {
+        let mut segments = Vec::new();
+        self.silhouette_segments_into(
+            world_from_model,
+            eye_world,
+            intensity_scale,
+            &mut segments,
+        );
+        segments
+    }
+
+    /// Append smooth edges that are silhouettes to `out`.
+    ///
+    /// This is the allocation-free form used by scene renderers that combine
+    /// silhouettes from multiple instances into one upload buffer.
+    pub fn silhouette_segments_into(
+        &self,
+        world_from_model: Mat4,
+        eye_world: Vec3,
+        intensity_scale: f32,
+        out: &mut Vec<Segment>,
+    ) {
         let eye = world_from_model.inverse().transform_point3(eye_world);
-        self.edges
+        for edge in self
+            .edges
             .iter()
             .filter(|edge| edge.kind == EdgeKind::Smooth)
-            .filter(|edge| {
-                let mid =
-                    (self.vertices[edge.a as usize] + self.vertices[edge.b as usize]) * 0.5;
-                let v = eye - mid;
-                edge.n1.dot(v) * edge.n2.dot(v) <= 0.0
-            })
-            .map(|edge| {
-                let segment = self.materialize(edge, intensity_scale);
-                Segment {
-                    a: world_from_model.transform_point3(segment.a),
-                    b: world_from_model.transform_point3(segment.b),
-                    ..segment
-                }
-            })
-            .collect()
+        {
+            let mid = (self.vertices[edge.a as usize] + self.vertices[edge.b as usize]) * 0.5;
+            let v = eye - mid;
+            if edge.n1.dot(v) * edge.n2.dot(v) > 0.0 {
+                continue;
+            }
+            let segment = self.materialize(edge, intensity_scale);
+            out.push(Segment {
+                a: world_from_model.transform_point3(segment.a),
+                b: world_from_model.transform_point3(segment.b),
+                ..segment
+            });
+        }
     }
 
     pub fn save(&self, path: &Path) -> io::Result<()> {
@@ -509,6 +529,14 @@ mod tests {
         };
         let from_side = model.silhouette_segments(Mat4::IDENTITY, vec3(5.0, 0.0, 0.5), 1.0);
         assert_eq!(from_side.len(), 1, "side view: faces disagree → silhouette");
+        let mut from_side_into = Vec::new();
+        model.silhouette_segments_into(
+            Mat4::IDENTITY,
+            vec3(5.0, 0.0, 0.5),
+            1.0,
+            &mut from_side_into,
+        );
+        assert_eq!(from_side_into, from_side, "append form matches allocating form");
         let head_on = model.silhouette_segments(Mat4::IDENTITY, vec3(0.0, 0.0, 5.0), 1.0);
         assert!(head_on.is_empty(), "head-on: both faces toward eye");
         // Rotating the instance 90° about Y turns the head-on eye into a

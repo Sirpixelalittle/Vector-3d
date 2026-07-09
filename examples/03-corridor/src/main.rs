@@ -265,7 +265,8 @@ impl CorridorApp {
             if frustum.intersects_aabb(instance.aabb_min, instance.aabb_max) {
                 segment_ranges.push(instance.segments.clone());
                 occluder_ranges.push(instance.occluder_indices.clone());
-                silhouettes.extend(self.scene.instance_silhouettes(instance, eye));
+                self.scene
+                    .instance_silhouettes_into(instance, eye, &mut silhouettes);
             }
         }
         renderers
