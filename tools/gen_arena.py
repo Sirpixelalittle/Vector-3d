@@ -228,6 +228,43 @@ def make_healthpack():
     g.write(OUT_DIR / "healthpack.gltf")
 
 
+def make_powerup():
+    """Boss bounty: two solid cyan chevron prisms pointing +X -- a 3D
+    ">>" dash glyph. Same recipe as the medkit: front and back faces
+    plus outline walls; the converter's weld and coplanar-edge drop
+    leave clean chevron outlines, and the faces occlude so the glyph
+    reads solid from every angle as it spins."""
+    g = GltfBuilder()
+    cyan = g.material("powerup", emissive=[0.35, 0.95, 1.0], emissive_strength=1.6)
+    d = 0.10  # half-depth of the extrusion
+    # Chevron hexagon (CCW from +Z), band 0.28 thick, pointing +X:
+    #   B0 -> B1 -> TIP -> T1 -> T0 -> NOTCH
+    hexagon = [
+        (-0.83, -0.7),  # B0 bottom trailing
+        (-0.55, -0.7),  # B1 bottom leading
+        (0.25, 0.0),    # TIP leading point
+        (-0.55, 0.7),   # T1 top leading
+        (-0.83, 0.7),   # T0 top trailing
+        (-0.03, 0.0),   # NOTCH trailing point
+    ]
+    pts, tris = [], []
+    for dx in (0.0, 0.72):  # two chevrons: ">>"
+        p = [(x + dx, y) for (x, y) in hexagon]
+        (b0, b1, tip, t1, t0, notch) = p
+        # Front (+Z) as two CCW quads split at the concave notch.
+        tris += quad(pts, (*notch, d), (*tip, d), (*t1, d), (*t0, d))
+        tris += quad(pts, (*b0, d), (*b1, d), (*tip, d), (*notch, d))
+        # Back (-Z), winding reversed.
+        tris += quad(pts, (*t0, -d), (*t1, -d), (*tip, -d), (*notch, -d))
+        tris += quad(pts, (*notch, -d), (*tip, -d), (*b1, -d), (*b0, -d))
+        # Outline walls.
+        for i in range(len(p)):
+            (x0, y0), (x1, y1) = p[i], p[(i + 1) % len(p)]
+            tris += quad(pts, (x0, y0, -d), (x1, y1, -d), (x1, y1, d), (x0, y0, d))
+    g.mesh("powerup", [g.primitive(pts, tris, cyan)])
+    g.write(OUT_DIR / "powerup.gltf")
+
+
 def make_boss():
     """Mini-boss: a true icosahedron cut at the equator into two models
     (boss_top / boss_bottom), each with origin at the cut plane so the
@@ -298,4 +335,5 @@ if __name__ == "__main__":
     make_shard()
     make_sentinel()
     make_healthpack()
+    make_powerup()
     make_boss()

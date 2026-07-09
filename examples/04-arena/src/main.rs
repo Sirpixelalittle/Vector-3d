@@ -40,6 +40,8 @@ const SENTINEL_PATH: &str = "assets/arena/sentinel.vec";
 #[cfg(not(target_arch = "wasm32"))]
 const HEALTHPACK_PATH: &str = "assets/arena/healthpack.vec";
 #[cfg(not(target_arch = "wasm32"))]
+const POWERUP_PATH: &str = "assets/arena/powerup.vec";
+#[cfg(not(target_arch = "wasm32"))]
 const BOSS_TOP_PATH: &str = "assets/arena/boss_top.vec";
 #[cfg(not(target_arch = "wasm32"))]
 const BOSS_BOTTOM_PATH: &str = "assets/arena/boss_bottom.vec";
@@ -68,6 +70,7 @@ mod embedded {
     pub const SHARD: &[u8] = include_bytes!("../../../assets/arena/shard.vec");
     pub const SENTINEL: &[u8] = include_bytes!("../../../assets/arena/sentinel.vec");
     pub const HEALTHPACK: &[u8] = include_bytes!("../../../assets/arena/healthpack.vec");
+    pub const POWERUP: &[u8] = include_bytes!("../../../assets/arena/powerup.vec");
     pub const BOSS_TOP: &[u8] = include_bytes!("../../../assets/arena/boss_top.vec");
     pub const BOSS_BOTTOM: &[u8] = include_bytes!("../../../assets/arena/boss_bottom.vec");
     pub const PISTOL: &[u8] = include_bytes!("../../../assets/pistol.vec");
@@ -207,6 +210,7 @@ struct GameModels {
     shard: VecModel,
     sentinel: VecModel,
     healthpack: VecModel,
+    powerup: VecModel,
     boss_top: VecModel,
     boss_bottom: VecModel,
 }
@@ -273,28 +277,34 @@ fn build_dynamic(
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
 
-    // Boss bounties: a spinning cyan double-chevron — the dash glyph —
-    // bobbing over a slow claim ring.
+    // Boss bounties: a solid spinning double-chevron — the dash glyph in
+    // 3D (its faces occlude, so it reads solid, not wireframe) — bobbing
+    // over a slow claim ring.
     for drop in &game.powerups {
         let pop = smoothstep((drop.age / 0.35).min(1.0));
         let transform = Mat4::from_translation(drop.center())
             * Mat4::from_rotation_y(drop.age * 1.4)
             * Mat4::from_scale(Vec3::splat(pop * 0.55));
-        let cyan = Vec4::new(0.35, 0.95, 1.0, 1.3 + 0.35 * (drop.age * 3.0).sin());
-        // Two nested chevrons pointing +X: "more dash".
-        let strokes = [
-            (vec3(-0.55, 0.7, 0.0), vec3(0.25, 0.0, 0.0)),
-            (vec3(0.25, 0.0, 0.0), vec3(-0.55, -0.7, 0.0)),
-            (vec3(0.15, 0.7, 0.0), vec3(0.95, 0.0, 0.0)),
-            (vec3(0.95, 0.0, 0.0), vec3(0.15, -0.7, 0.0)),
-        ];
-        for (a, b) in strokes {
-            segments.push(Segment::new(
-                transform.transform_point3(a),
-                transform.transform_point3(b),
-                cyan,
-            ));
-        }
+        segments.extend(
+            models
+                .powerup
+                .edge_segments(EdgeKind::Always, 0.85 + 0.25 * (drop.age * 3.0).sin())
+                .into_iter()
+                .map(|s| Segment {
+                    a: transform.transform_point3(s.a),
+                    b: transform.transform_point3(s.b),
+                    ..s
+                }),
+        );
+        let base = vertices.len() as u32;
+        vertices.extend(
+            models
+                .powerup
+                .vertices
+                .iter()
+                .map(|&v| transform.transform_point3(v)),
+        );
+        indices.extend(models.powerup.occluder_indices.iter().map(|&i| i + base));
         // Claim ring on the floor, breathing with the bob.
         let ring_r = 0.62 + (drop.age * 2.0).sin() * 0.05;
         let ring_color = Vec4::new(0.35, 0.95, 1.0, 0.55);
@@ -823,6 +833,7 @@ impl ArenaApp {
             shard: VecModel::load_from(embedded::SHARD).context("shard.vec")?,
             sentinel: VecModel::load_from(embedded::SENTINEL).context("sentinel.vec")?,
             healthpack: VecModel::load_from(embedded::HEALTHPACK).context("healthpack.vec")?,
+            powerup: VecModel::load_from(embedded::POWERUP).context("powerup.vec")?,
             boss_top: VecModel::load_from(embedded::BOSS_TOP).context("boss_top.vec")?,
             boss_bottom: VecModel::load_from(embedded::BOSS_BOTTOM).context("boss_bottom.vec")?,
         };
@@ -846,6 +857,7 @@ impl ArenaApp {
             sentinel: VecModel::load(&root.join(SENTINEL_PATH)).context("load sentinel.vec")?,
             healthpack: VecModel::load(&root.join(HEALTHPACK_PATH))
                 .context("load healthpack.vec")?,
+            powerup: VecModel::load(&root.join(POWERUP_PATH)).context("load powerup.vec")?,
             boss_top: VecModel::load(&root.join(BOSS_TOP_PATH)).context("load boss_top.vec")?,
             boss_bottom: VecModel::load(&root.join(BOSS_BOTTOM_PATH))
                 .context("load boss_bottom.vec")?,

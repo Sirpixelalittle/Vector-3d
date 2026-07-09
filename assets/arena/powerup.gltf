@@ -1,0 +1,95 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "vector3d gen_test_assets"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "powerup",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0
+     },
+     "indices": 1,
+     "material": 0,
+     "mode": 4
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "powerup",
+   "pbrMetallicRoughness": {},
+   "emissiveFactor": [
+    0.35,
+    0.95,
+    1.0
+   ],
+   "extensions": {
+    "KHR_materials_emissive_strength": {
+     "emissiveStrength": 1.6
+    }
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,j8L1vAAAAADNzMw9AACAPgAAAADNzMw9zcwMvzMzMz/NzMw94XpUvzMzMz/NzMw94XpUvzMzM7/NzMw9zcwMvzMzM7/NzMw9AACAPgAAAADNzMw9j8L1vAAAAADNzMw94XpUvzMzMz/NzMy9zcwMvzMzMz/NzMy9AACAPgAAAADNzMy9j8L1vAAAAADNzMy9j8L1vAAAAADNzMy9AACAPgAAAADNzMy9zcwMvzMzM7/NzMy94XpUvzMzM7/NzMy94XpUvzMzM7/NzMy9zcwMvzMzM7/NzMy9zcwMvzMzM7/NzMw94XpUvzMzM7/NzMw9zcwMvzMzM7/NzMy9AACAPgAAAADNzMy9AACAPgAAAADNzMw9zcwMvzMzM7/NzMw9AACAPgAAAADNzMy9zcwMvzMzMz/NzMy9zcwMvzMzMz/NzMw9AACAPgAAAADNzMw9zcwMvzMzMz/NzMy94XpUvzMzMz/NzMy94XpUvzMzMz/NzMw9zcwMvzMzMz/NzMw94XpUvzMzMz/NzMy9j8L1vAAAAADNzMy9j8L1vAAAAADNzMw94XpUvzMzMz/NzMw9j8L1vAAAAADNzMy94XpUvzMzM7/NzMy94XpUvzMzM7/NzMw9j8L1vAAAAADNzMw916MwPwAAAADNzMw97FF4PwAAAADNzMw9exQuPjMzMz/NzMw9rkfhvTMzMz/NzMw9rkfhvTMzM7/NzMw9exQuPjMzM7/NzMw97FF4PwAAAADNzMw916MwPwAAAADNzMw9rkfhvTMzMz/NzMy9exQuPjMzMz/NzMy97FF4PwAAAADNzMy916MwPwAAAADNzMy916MwPwAAAADNzMy97FF4PwAAAADNzMy9exQuPjMzM7/NzMy9rkfhvTMzM7/NzMy9rkfhvTMzM7/NzMy9exQuPjMzM7/NzMy9exQuPjMzM7/NzMw9rkfhvTMzM7/NzMw9exQuPjMzM7/NzMy97FF4PwAAAADNzMy97FF4PwAAAADNzMw9exQuPjMzM7/NzMw97FF4PwAAAADNzMy9exQuPjMzMz/NzMy9exQuPjMzMz/NzMw97FF4PwAAAADNzMw9exQuPjMzMz/NzMy9rkfhvTMzMz/NzMy9rkfhvTMzMz/NzMw9exQuPjMzMz/NzMw9rkfhvTMzMz/NzMy916MwPwAAAADNzMy916MwPwAAAADNzMw9rkfhvTMzMz/NzMw916MwPwAAAADNzMy9rkfhvTMzM7/NzMy9rkfhvTMzM7/NzMw916MwPwAAAADNzMw9AAAAAAEAAAACAAAAAAAAAAIAAAADAAAABAAAAAUAAAAGAAAABAAAAAYAAAAHAAAACAAAAAkAAAAKAAAACAAAAAoAAAALAAAADAAAAA0AAAAOAAAADAAAAA4AAAAPAAAAEAAAABEAAAASAAAAEAAAABIAAAATAAAAFAAAABUAAAAWAAAAFAAAABYAAAAXAAAAGAAAABkAAAAaAAAAGAAAABoAAAAbAAAAHAAAAB0AAAAeAAAAHAAAAB4AAAAfAAAAIAAAACEAAAAiAAAAIAAAACIAAAAjAAAAJAAAACUAAAAmAAAAJAAAACYAAAAnAAAAKAAAACkAAAAqAAAAKAAAACoAAAArAAAALAAAAC0AAAAuAAAALAAAAC4AAAAvAAAAMAAAADEAAAAyAAAAMAAAADIAAAAzAAAANAAAADUAAAA2AAAANAAAADYAAAA3AAAAOAAAADkAAAA6AAAAOAAAADoAAAA7AAAAPAAAAD0AAAA+AAAAPAAAAD4AAAA/AAAAQAAAAEEAAABCAAAAQAAAAEIAAABDAAAARAAAAEUAAABGAAAARAAAAEYAAABHAAAASAAAAEkAAABKAAAASAAAAEoAAABLAAAATAAAAE0AAABOAAAATAAAAE4AAABPAAAA",
+   "byteLength": 1440
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 960
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 960,
+   "byteLength": 480
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 80,
+   "type": "VEC3",
+   "min": [
+    -0.83,
+    -0.7,
+    -0.1
+   ],
+   "max": [
+    0.97,
+    0.7,
+    0.1
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5125,
+   "count": 120,
+   "type": "SCALAR"
+  }
+ ],
+ "extensionsUsed": [
+  "KHR_materials_emissive_strength"
+ ]
+}
