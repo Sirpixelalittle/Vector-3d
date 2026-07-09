@@ -34,6 +34,7 @@ cargo doc --workspace --no-deps --open
 | `03-corridor` | Scenes: `scene.ron`, instances/tints, collision walking, fog, a weapon viewmodel |
 | `04-arena` | A complete game: sim/render split, enemies, projectiles, HUD, audio bank, embedded assets |
 | `05-editor` | The engine as a tool platform: live baking through `vex-convert`, exporting playable `.vec` |
+| `06-soundlab` | The synth toolkit as a sketchpad: RON sound recipes, hot-reload playback, paste-ready Rust output |
 
 Run any of them with `cargo run -p <name>` (`viewer` wants a model path —
 see [Getting started](getting-started.md)).

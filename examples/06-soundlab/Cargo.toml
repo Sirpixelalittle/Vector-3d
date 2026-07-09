@@ -1,0 +1,11 @@
+[package]
+name = "soundlab"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+vex-audio.workspace = true
+anyhow.workspace = true
+ron.workspace = true
+serde.workspace = true

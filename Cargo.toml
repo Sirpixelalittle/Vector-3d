@@ -11,6 +11,7 @@ members = [
     "examples/03-corridor",
     "examples/04-arena",
     "examples/05-editor",
+    "examples/06-soundlab",
 ]
 
 [workspace.package]

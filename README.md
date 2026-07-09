@@ -129,6 +129,7 @@ clips know nothing about what they animate.
 | `examples/03-corridor` | FPS walkthrough of the reference aesthetic        |
 | `examples/04-arena`  | the game                                            |
 | `examples/05-editor` | in-engine level editor — primitives with hue/glow dials, exports `.vec` |
+| `examples/06-soundlab` | sound sketchpad — RON recipes, hot-reloaded playback, prints paste-ready Rust |
 
 Every example has a headless `--screenshot` mode (deterministic `--demo`
 simulation in the arena) — the project was verified throughout by

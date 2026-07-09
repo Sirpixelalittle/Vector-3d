@@ -2238,6 +2238,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "soundlab"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ron",
+ "serde",
+ "vex-audio",
+]
+
+[[package]]
 name = "spirv"
 version = "0.4.0+sdk-1.4.341.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -122,6 +122,11 @@ Recipes compose `vex_audio::synth` primitives (`sweep`, `sweep_exp`,
 `burst`, `mix`, `append`, `to_sound`, …) — deterministic, no audio files.
 Adding a sound never touches engine code.
 
+Prototype recipes with the sound lab before committing to one:
+`cargo run -p soundlab -- sketch.sound.ron` bootstraps a documented
+sketch, replays it on every save, and prints the paste-ready Rust
+(`c` in the tool, or `--code`).
+
 ## Assets and shipping
 
 - Load content from an `assets/` directory next to the executable;
