@@ -1,0 +1,28 @@
+// Player gun — fitted numerically against the reference recording the
+// maintainer liked (freesound 14792): envelope, pitch track, and
+// noise/tone band balance matched via FFT comparison. This is what
+// sounds.rs ships; tweak by ear from here.
+//
+//   cargo run -p soundlab -- sketches/player-gun.sound.ron
+//
+// The knobs, by feel:
+//   crack  amp 0.55 ......... the snap of the shot
+//   ring   decay 2.8 ........ how long the "laser ring" holds (lower = longer)
+//   boom   amp 0.30 ......... weight of the low tail (the "gun" body)
+//   knock  layer ............ the mechanical double-hit at 115 ms
+Sound(
+    layers: [
+        // crack: bright noise front
+        [Burst(dur: 0.16, decay: 7.0, amp: 0.55)],
+        // sizzle: faint noise wash carrying air into the tail
+        [Burst(dur: 0.28, decay: 5.5, amp: 0.10)],
+        // zap: fast saw dive buried in the crack (the "laser" tell)
+        [SweepExp(dur: 0.06, from: 880.0, to: 300.0, decay: 10.0, amp: 0.30, shape: Saw)],
+        // ring: mid tone emerging as the noise fades
+        [Silence(dur: 0.02), SweepExp(dur: 0.28, from: 520.0, to: 215.0, decay: 2.8, amp: 0.42, shape: Sine)],
+        // boom: late low tail
+        [Silence(dur: 0.12), SweepExp(dur: 0.36, from: 150.0, to: 56.0, decay: 3.2, amp: 0.30, shape: Sine)],
+        // knock: the little mechanical re-hit
+        [Silence(dur: 0.115), SweepExp(dur: 0.08, from: 360.0, to: 190.0, decay: 6.0, amp: 0.38, shape: Sine)],
+    ],
+)

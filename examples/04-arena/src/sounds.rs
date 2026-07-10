@@ -65,10 +65,22 @@ impl Sounds {
 }
 
 fn shot() -> StaticSoundData {
-    // Crack of noise over a low thump.
-    let crack = burst(0.12, 26.0, 0.75);
-    let thump = sweep(0.14, 170.0, 60.0, 14.0, 0.65, sine);
-    to_sound(mix(crack, &thump))
+    // Fitted numerically against a reference recording the user picked
+    // (freesound 14792 — a "laser" that reads as a gun). Four phases:
+    // a noise crack with a fast saw dive buried in it, a mid ring
+    // falling 520→215 Hz as the noise fades, a late low boom tail, and
+    // a small mechanical knock at 115 ms. Retune by ear via
+    // sketches/player-gun.sound.ron.
+    let crack = burst(0.16, 7.0, 0.55);
+    let sizzle = burst(0.28, 5.5, 0.10);
+    let zap = sweep_exp(0.06, 880.0, 300.0, 10.0, 0.30, saw);
+    let ring = append(silence(0.02), sweep_exp(0.28, 520.0, 215.0, 2.8, 0.42, sine));
+    let boom = append(silence(0.12), sweep_exp(0.36, 150.0, 56.0, 3.2, 0.30, sine));
+    let knock = append(silence(0.115), sweep_exp(0.08, 360.0, 190.0, 6.0, 0.38, sine));
+    to_sound(mix(
+        mix(mix(mix(mix(crack, &sizzle), &zap), &ring), &boom),
+        &knock,
+    ))
 }
 
 fn bolt_fire() -> StaticSoundData {
