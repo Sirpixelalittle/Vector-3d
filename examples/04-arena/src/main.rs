@@ -91,11 +91,17 @@ const WEAPON_LENGTH: f32 = 0.52;
 /// readable against busy scenes. Runs through the scene glow dial like
 /// everything else.
 const WEAPON_GLOW: f32 = 1.35;
+/// The high-poly pistol emits dense silhouette bands (curved surfaces →
+/// many short contour strokes) that stack additively and bleach the
+/// viewmodel white. Draw crease edges at full glow but silhouettes as a
+/// faint shading layer, so the panel lines and part colors read.
+const WEAPON_SILHOUETTE_GLOW: f32 = 0.30;
 
-// Reorient the lying-flat pistol (model axes: Z = barrel, X = gun-vertical,
-// Y = thickness) into a viewmodel frame — barrel forward (−Z), grip down
-// (−Y). Signs picked empirically from the axis renders.
-const GUN_STAND: f32 = -std::f32::consts::FRAC_PI_2; // roll upright about barrel
+// Reorient the pistol (model axes: Z = barrel, Y = gun-vertical, X =
+// thickness — this one is authored standing upright) into a viewmodel
+// frame — barrel forward (−Z), grip down (−Y). Signs picked empirically
+// from the axis renders.
+const GUN_STAND: f32 = 0.0; // already upright: no roll about the barrel
 const GUN_AIM: f32 = std::f32::consts::PI; // aim the barrel INTO the screen
 /// Idle adjustments once the barrel already points forward.
 const GUN_BASE_PITCH: f32 = -0.04;
@@ -159,7 +165,7 @@ impl Weapon {
         self.model.silhouette_segments_into(
             placement,
             Vec3::ZERO,
-            WEAPON_GLOW,
+            WEAPON_SILHOUETTE_GLOW,
             segments,
         );
         vertices.extend(
