@@ -658,7 +658,20 @@ impl Game {
                 } else {
                     enemy.hp -= GUN_DAMAGE;
                     if enemy.kind != EnemyKind::Boss {
-                        enemy.pos += dir * GUN_KNOCKBACK;
+                        // Through the collision slide, never a raw shove:
+                        // GUN_KNOCKBACK (0.6) exceeds a shard's radius
+                        // (0.55), so a raw push can carry a wall-hugging
+                        // shard's center past the wall plane — and the
+                        // slide's came-from tie-break would then pin it
+                        // outside the arena, unkillable.
+                        let slid = slide_capsule(
+                            soup,
+                            enemy.pos,
+                            enemy.kind.radius(),
+                            enemy.kind.capsule_height(),
+                            dir * GUN_KNOCKBACK,
+                        );
+                        enemy.pos = vec3(slid.position.x, 0.0, slid.position.z);
                     }
                     let dead = enemy.hp <= 0.0;
                     spark(&mut self.particles, &mut self.rng, hit, 5);
@@ -1494,6 +1507,44 @@ mod tests {
         // It steps toward the player (−Z→ +Z a hair), never away from it:
         // knockback (which points along −Z aim) would push z more negative.
         assert!(game.enemies[0].pos.z > -8.05, "not shoved backward");
+    }
+
+    #[test]
+    fn knockback_slides_along_walls_instead_of_crossing_them() {
+        // A shard hugging a wall: center at its radius (0.55) from the
+        // plane. GUN_KNOCKBACK (0.6) is bigger, so a raw shove would put
+        // the center past the plane — where the slide's came-from
+        // tie-break would dutifully keep it, outside and unkillable (the
+        // separation soft-lock, gun-flavored). The slug is injected
+        // point-blank so the hit lands before the shard steers off the
+        // wall.
+        let wall_z = -6.0;
+        let soup = wall_at_z(wall_z);
+        let mut game = Game::new();
+        game.phase = Phase::Fighting;
+        let radius = EnemyKind::Shard.radius();
+        game.enemies
+            .push(spawned(EnemyKind::Shard, vec3(0.0, 0.0, wall_z + radius), 1));
+        let center = game.enemies[0].center();
+        game.bullets.push(Bullet {
+            pos: center + vec3(0.0, 0.0, 1.0),
+            vel: vec3(0.0, 0.0, -BULLET_SPEED),
+            life: 1.0,
+            spent: false,
+        });
+
+        for _ in 0..60 {
+            game.update(1.0 / 60.0, EYE, AIM, MUZ, false, &soup);
+            assert!(
+                game.enemies.is_empty() || game.enemies[0].pos.z > wall_z,
+                "shard center crossed the wall plane: z={}",
+                game.enemies[0].pos.z
+            );
+        }
+        assert!(
+            game.enemies[0].hp < EnemyKind::Shard.max_hp(),
+            "the slug connected"
+        );
     }
 
     #[test]
