@@ -107,12 +107,16 @@ compile error.
 
 ## Environment quirks (documented, not bugs — don't "fix" them)
 
-- `build_web.sh` forces `lto="off"` for wasm: CachyOS bakes
-  x86-64-v3 into rust-wasm's std bitcode and thin-LTO re-codegens it.
-  Leave it.
-- Arch `rust` and `rust-wasm` must match to the exact pkgrel;
-  wasm-bindgen-cli must match `Cargo.lock`. Version-skew errors look
+- `build_web.sh` forces `lto="off"` for wasm — a workaround for the
+  old distro rust-wasm std baking in x86-64-v3. The toolchain is
+  rustup-managed since 2026-07-10, so the reason may be gone, but
+  retest in a browser before touching it.
+- wasm-bindgen-cli must match `Cargo.lock`. Version-skew errors look
   like thousands of `E0425 Ok/Err not found`.
+- Windows: `cargo build --release --target x86_64-pc-windows-gnu -p
+  arena` → self-contained exe. Wine smoke tests need
+  `winetricks d3dcompiler_47` (wine's builtin HLSL compiler can't do
+  wgpu's SM 5.1 sampler heaps) — see `docs/windows.md`.
 - Browsers cache wasm hard — hard-refresh after rebuilds.
 - Web audio legally starts only on a user gesture; the engine inits
   audio on the first captured click. Don't move it earlier.

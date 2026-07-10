@@ -16,6 +16,7 @@ trust the example and file the doc bug.
 | [File formats](formats.md) | `.vec` binary spec, scene `.ron`, animation `.anim.ron` |
 | [Building a game](building-a-game.md) | App loop, input, cameras, collision, audio, shipping |
 | [Web builds](web.md) | wasm/WebGPU builds, toolchain pinning, itch.io packaging |
+| [Windows builds](windows.md) | Cross-compiling from Linux, wine smoke-testing |
 
 ## API reference
 

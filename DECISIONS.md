@@ -145,9 +145,15 @@ RNG), which is what makes this work; keep it that way.
 
 ## Toolchain footnotes
 
-The environment quirks live in the skill file (wasm LTO off, exact
-version-matching for rust/rust-wasm/wasm-bindgen). One addition worth its
-own note: `wasm-opt` needs explicit `--enable-*` feature flags in
+The environment quirks live in the skill file (wasm LTO off,
+wasm-bindgen-cli pinned to `Cargo.lock`). One addition worth its own
+note: `wasm-opt` needs explicit `--enable-*` feature flags in
 `tools/build_web.sh` because `strip = "symbols"` removes the
 `target_features` section binaryen would otherwise read. Symptom of
 removing them: "Fatal: error validating input" on perfectly valid wasm.
+
+Switched from distro rust to rustup (2026-07-10), which ended the old
+rust/rust-wasm exact-pkgrel matching requirement and enabled the Windows
+cross-compile target (`docs/windows.md`). The wasm `lto="off"` workaround
+predates the switch and may now be removable — verify in a browser before
+touching it.
