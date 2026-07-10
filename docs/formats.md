@@ -28,7 +28,9 @@ AABB  6×f32                        min, max
 ```
 
 Readers reject bad magic and absurd counts (corrupt-file guard). Unknown
-chunk tags are an error — bump `VEC_VERSION` for format changes.
+chunk tags are skipped, so new chunk types can be added without breaking
+old readers — bump `VEC_VERSION` only for changes existing readers would
+misparse.
 
 ### Edge semantics
 
