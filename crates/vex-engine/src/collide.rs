@@ -3,9 +3,44 @@
 //! response. Collision geometry *is* the render occluder mesh — walls that
 //! eat lines also stop the player.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use glam::Vec3;
+
+thread_local! {
+    /// Per-thread scratch for grid queries: the hot paths (slides, steer
+    /// whiskers, line of sight, bolt sweeps) run hundreds of queries per
+    /// frame, and this keeps them allocation-free in the steady state.
+    /// Shared across soups — `begin` grows the mark table monotonically
+    /// and the generation stamp invalidates stale marks for free.
+    static SCRATCH: RefCell<QueryScratch> = RefCell::new(QueryScratch::default());
+}
+
+#[derive(Default)]
+struct QueryScratch {
+    /// Unique candidate ids gathered this query (sorted before use).
+    ids: Vec<u32>,
+    /// `mark[id] == generation` ⇒ id is already in `ids` this query.
+    mark: Vec<u32>,
+    generation: u32,
+}
+
+impl QueryScratch {
+    fn begin(&mut self, triangle_count: usize) {
+        self.ids.clear();
+        if self.mark.len() < triangle_count {
+            self.mark.resize(triangle_count, 0);
+        }
+        self.generation = self.generation.wrapping_add(1);
+        if self.generation == 0 {
+            // Wrapped after ~4 billion queries: stale marks could alias
+            // the recycled generation, so reset them once.
+            self.mark.fill(0);
+            self.generation = 1;
+        }
+    }
+}
 
 const SLIDE_ITERATIONS: usize = 4;
 /// A push-out steeper than this counts as standing on ground.
@@ -72,18 +107,37 @@ impl TriangleSoup {
         cells
     }
 
-    /// Triangle ids whose cells overlap the query box (deduplicated).
-    fn candidates(&self, lo: Vec3, hi: Vec3) -> Vec<u32> {
-        let mut ids: Vec<u32> = self
-            .cells_covering(lo, hi)
-            .into_iter()
-            .filter_map(|cell| self.grid.get(&cell))
-            .flatten()
-            .copied()
-            .collect();
-        ids.sort_unstable();
-        ids.dedup();
-        ids
+    /// Run `visit` over the sorted, deduplicated triangle ids whose cells
+    /// overlap the query box. Allocation-free in the steady state (the
+    /// per-thread scratch grows to the busiest query and stays). Sorted so
+    /// downstream iteration — and therefore `slide_capsule`'s sequential
+    /// contact resolution — orders exactly like the old sort+dedup did.
+    /// Queries must not nest (nothing here does).
+    fn with_candidates<R>(&self, lo: Vec3, hi: Vec3, visit: impl FnOnce(&[u32]) -> R) -> R {
+        SCRATCH.with(|cell| {
+            let scratch = &mut *cell.borrow_mut();
+            scratch.begin(self.triangles.len());
+            let a = self.cell_of(lo);
+            let b = self.cell_of(hi);
+            for x in a[0]..=b[0] {
+                for y in a[1]..=b[1] {
+                    for z in a[2]..=b[2] {
+                        let Some(bucket) = self.grid.get(&[x, y, z]) else {
+                            continue;
+                        };
+                        for &id in bucket {
+                            let mark = &mut scratch.mark[id as usize];
+                            if *mark != scratch.generation {
+                                *mark = scratch.generation;
+                                scratch.ids.push(id);
+                            }
+                        }
+                    }
+                }
+            }
+            scratch.ids.sort_unstable();
+            visit(&scratch.ids)
+        })
     }
 
     /// Distance to the nearest triangle hit along `dir` (unit length),
@@ -92,17 +146,19 @@ impl TriangleSoup {
     pub fn raycast(&self, origin: Vec3, dir: Vec3, max_dist: f32) -> Option<f32> {
         let end = origin + dir * max_dist;
         let pad = Vec3::splat(0.01);
-        let mut best: Option<f32> = None;
-        for id in self.candidates(origin.min(end) - pad, origin.max(end) + pad) {
-            let [a, b, c] = self.triangles[id as usize];
-            if let Some(t) = ray_triangle(origin, dir, a, b, c)
-                && t <= max_dist
-                && best.is_none_or(|prev| t < prev)
-            {
-                best = Some(t);
+        self.with_candidates(origin.min(end) - pad, origin.max(end) + pad, |ids| {
+            let mut best: Option<f32> = None;
+            for &id in ids {
+                let [a, b, c] = self.triangles[id as usize];
+                if let Some(t) = ray_triangle(origin, dir, a, b, c)
+                    && t <= max_dist
+                    && best.is_none_or(|prev| t < prev)
+                {
+                    best = Some(t);
+                }
             }
-        }
-        best
+            best
+        })
     }
 
     /// True when the straight line from `from` to `to` is unobstructed.
@@ -167,19 +223,21 @@ pub fn slide_capsule(
         let p0 = position + Vec3::Y * radius;
         let p1 = position + Vec3::Y * axis_top;
         let pad = Vec3::splat(radius + 0.05);
-        let candidates = soup.candidates(p0.min(p1) - pad, p0.max(p1) + pad);
 
         // Resolve the deepest penetration, then re-test — stable for the
         // shallow contacts a walking character produces.
-        let mut best: Option<Vec3> = None;
-        for id in candidates {
-            let [a, b, c] = soup.triangles[id as usize];
-            if let Some(push) = capsule_triangle_pushout(p0, p1, radius, a, b, c, came_from)
-                && best.is_none_or(|b| push.length_squared() > b.length_squared())
-            {
-                best = Some(push);
+        let best = soup.with_candidates(p0.min(p1) - pad, p0.max(p1) + pad, |ids| {
+            let mut best: Option<Vec3> = None;
+            for &id in ids {
+                let [a, b, c] = soup.triangles[id as usize];
+                if let Some(push) = capsule_triangle_pushout(p0, p1, radius, a, b, c, came_from)
+                    && best.is_none_or(|b| push.length_squared() > b.length_squared())
+                {
+                    best = Some(push);
+                }
             }
-        }
+            best
+        });
         let Some(push) = best else { break };
         position += push;
         if push.normalize_or_zero().y > GROUND_NORMAL_Y {
@@ -344,6 +402,70 @@ mod tests {
         let result = slide_capsule(&soup, vec3(0.0, 3.0, 0.0), 0.35, 1.7, vec3(0.3, 0.0, 0.0));
         assert!(result.position.abs_diff_eq(vec3(0.3, 3.0, 0.0), 1e-6));
         assert!(!result.grounded);
+    }
+
+    #[test]
+    fn candidate_gathering_matches_sort_dedup_semantics() {
+        // A grid of quads so query boxes span many cells and triangles
+        // land in several buckets each (dedup actually exercised).
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for gx in 0..6 {
+            for gz in 0..6 {
+                let (x, z) = (gx as f32 * 3.0 - 9.0, gz as f32 * 3.0 - 9.0);
+                let base = vertices.len() as u32;
+                vertices.extend([
+                    vec3(x, 0.0, z),
+                    vec3(x + 3.0, 0.0, z),
+                    vec3(x + 3.0, 0.0, z + 3.0),
+                    vec3(x, 0.0, z + 3.0),
+                ]);
+                indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+            }
+        }
+        let soup = TriangleSoup::new(&vertices, &indices, 2.0);
+
+        let brute = |lo: Vec3, hi: Vec3| -> Vec<u32> {
+            // The old algorithm, verbatim: gather with duplicates, then
+            // sort + dedup.
+            let mut ids: Vec<u32> = soup
+                .cells_covering(lo, hi)
+                .into_iter()
+                .filter_map(|cell| soup.grid.get(&cell))
+                .flatten()
+                .copied()
+                .collect();
+            ids.sort_unstable();
+            ids.dedup();
+            ids
+        };
+
+        let boxes = [
+            (vec3(-9.5, -1.0, -9.5), vec3(9.5, 1.0, 9.5)), // everything
+            (vec3(-1.0, -1.0, -1.0), vec3(1.0, 1.0, 1.0)), // center
+            (vec3(-8.0, -1.0, 2.0), vec3(-2.0, 1.0, 8.0)), // off-center
+            (vec3(50.0, 0.0, 50.0), vec3(51.0, 1.0, 51.0)), // empty
+        ];
+        // Repeat so the generation stamp advances between queries.
+        for _ in 0..3 {
+            for (lo, hi) in boxes {
+                let got = soup.with_candidates(lo, hi, <[u32]>::to_vec);
+                assert_eq!(got, brute(lo, hi), "box {lo:?}..{hi:?}");
+            }
+        }
+
+        // A larger soup on the same thread grows the shared mark table.
+        let big = TriangleSoup::new(
+            &[vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 1.0)],
+            &[0, 1, 2],
+            0.5,
+        );
+        let got = big.with_candidates(
+            vec3(-1.0, -1.0, -1.0),
+            vec3(2.0, 1.0, 2.0),
+            <[u32]>::to_vec,
+        );
+        assert_eq!(got, vec![0]);
     }
 
     #[test]
