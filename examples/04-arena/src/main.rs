@@ -1372,6 +1372,10 @@ impl ArenaApp {
             self.player.pos = self.scene.player_spawn;
             self.player.yaw = self.scene.player_yaw;
             self.player.pitch = 0.0;
+            // A fresh run gets a fresh body: no dash momentum, cooldown,
+            // or banked X2 carried over from the death. Tuning (the
+            // options-menu sensitivity) survives.
+            self.player.reset_motion();
         }
         if input.is_captured() {
             self.ensure_audio();

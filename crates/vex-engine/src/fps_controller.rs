@@ -158,6 +158,24 @@ impl FpsController {
         self.grounded
     }
 
+    /// Zero every piece of transient motion state — velocities, the dash
+    /// burst/cooldown/bank, weapon bob, the just-dashed latch — back to
+    /// the values [`new`] starts with. Tuning (sensitivity, speeds, the
+    /// dash configuration) and the pose (`pos`/`yaw`/`pitch`) are left
+    /// alone. For game restarts: a fresh run must not inherit the last
+    /// run's momentum, half-spent cooldown, or banked powerup.
+    ///
+    /// [`new`]: Self::new
+    pub fn reset_motion(&mut self) {
+        self.extra_dash = false;
+        self.velocity_y = 0.0;
+        self.grounded = false;
+        self.bob_phase = 0.0;
+        self.dash_velocity = Vec3::ZERO;
+        self.dash_timer = 0.0;
+        self.dashed = false;
+    }
+
     /// 0 → 1 dash recharge (1 = ready). Always 1 when the dash is off.
     /// Bank a bonus dash (powerup pickup): if the dash is ready it's held
     /// as an extra charge — the next dash spends the charge, not the
@@ -321,6 +339,50 @@ mod tests {
         player.grant_dash();
         assert!(!player.extra_dash, "no bank while recharging");
         assert!(player.dash_ready_fraction() >= 1.0, "recharge finished");
+    }
+
+    #[test]
+    fn reset_motion_drops_momentum_and_bank_but_keeps_tuning() {
+        let soup = floor();
+        let mut player = FpsController::new(vec3(0.0, 0.0, 0.0), 0.0);
+        player.jump_enabled = false;
+        player.sprint_enabled = false;
+        player.dash_enabled = true;
+        player.sensitivity = 0.005;
+
+        // Die mid-dash: burst velocity live, cooldown running, bob
+        // advanced, the just-dashed latch still set — plus a banked
+        // charge, as if a powerup was held at death.
+        let mut input = Input::default();
+        input.set_key(KeyCode::KeyW, true);
+        input.set_key(KeyCode::Space, true);
+        for _ in 0..5 {
+            player.update(1.0 / 60.0, &input, &soup);
+            input.end_frame();
+        }
+        assert!(player.dash_ready_fraction() < 1.0, "mid-cooldown");
+        player.extra_dash = true;
+
+        player.reset_motion();
+
+        assert!(!player.extra_dash, "the bank does not survive a restart");
+        assert!(player.dash_ready_fraction() >= 1.0, "meter starts full");
+        assert!(!player.just_dashed(), "no stale dash latch");
+        assert_eq!(player.bob_phase(), 0.0);
+        assert_eq!(player.sensitivity, 0.005, "options tuning survives");
+
+        // No inherited momentum: standing still stays still.
+        let idle = Input::default();
+        let start = player.pos;
+        for _ in 0..30 {
+            player.update(1.0 / 60.0, &idle, &soup);
+        }
+        assert!(
+            (player.pos.x - start.x).abs() < 1e-3
+                && (player.pos.z - start.z).abs() < 1e-3,
+            "drifted to {:?}",
+            player.pos
+        );
     }
 
     #[test]
