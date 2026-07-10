@@ -7,8 +7,9 @@ description: How to work on the vector3d engine and games without breaking it �
 
 A from-scratch vector-CRT engine (Rust + wgpu). Everything on screen is a
 glowing stroke; triangles exist only to occlude strokes via the depth
-buffer. Read `DESIGN.md` for architecture; this skill is about *how to
-change things safely*.
+buffer. Read `DESIGN.md` for architecture and `DECISIONS.md` for settled
+decisions and their reasons; this skill is about *how to change things
+safely*.
 
 ## The prime directive
 
@@ -92,9 +93,11 @@ compile error.
 - `examples/*` game logic — freely, keeping their unit tests green.
   Pattern: pure sim module (`game.rs`, tested, emits events) +
   presentation (`main.rs`).
-- Sounds: `crates/vex-audio/src/synth.rs` amp/freq numbers. All SFX are
-  synthesized — never add audio files. Audible check:
-  `cargo test -p vex-audio -- --ignored`.
+- Sounds: game-owned recipes (e.g. `examples/04-arena/src/sounds.rs`)
+  built from the `vex_audio::synth` toolkit; prototype with
+  `cargo run -p soundlab -- x.sound.ron`. All SFX are synthesized — never
+  add audio files, and never put sound content in the engine crate.
+  Audible check: `cargo test -p vex-audio -- --ignored`.
 - Assets: `tools/gen_*.py` → `cargo run -p vex-convert -- file.gltf`;
   scene RON; `.anim.ron` clips; editor levels. Sloppy overlapping-box
   meshes are fine — welding + coplanar-drop clean them up.
