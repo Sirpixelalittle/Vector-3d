@@ -1,0 +1,14 @@
+// Bolt laser, candidate C — "heavy blaster": lower and longer, closer
+// to a movie blaster pew. Little cousin of boss_ring's diving saws —
+// same weapon universe, one weight class down. Good if A feels too
+// zippy for the bolt's flight speed.
+//
+//   cargo run -p soundlab -- sketches/bolt-laser-c.sound.ron
+Sound(
+    layers: [
+        [SweepExp(dur: 0.18, from: 900.0, to: 180.0, decay: 9.0, amp: 0.32, shape: Saw)],
+        [SweepExp(dur: 0.18, from: 915.0, to: 190.0, decay: 9.0, amp: 0.22, shape: Saw)],
+        [SweepExp(dur: 0.18, from: 452.0, to: 95.0, decay: 9.0, amp: 0.15, shape: Square)],
+        [Burst(dur: 0.025, decay: 35.0, amp: 0.25)],
+    ],
+)

@@ -72,13 +72,17 @@ fn shot() -> StaticSoundData {
 }
 
 fn bolt_fire() -> StaticSoundData {
-    // Movie-laser "pyew": a fast exponential pitch dive on two slightly
-    // detuned sines — their beating is the metallic shimmer — plus a tiny
-    // trigger snap of noise at the front.
-    let body = sweep_exp(0.24, 2800.0, 220.0, 8.5, 0.34, sine);
-    let shimmer = sweep_exp(0.24, 2905.0, 236.0, 8.5, 0.20, sine);
-    let snap = burst(0.018, 40.0, 0.18);
-    to_sound(mix(mix(body, &shimmer), &snap))
+    // Ray-gun zap. Saws, not sines: a pure sine dive reads as a bird
+    // chirp (player feedback), while saw harmonics carry the electric
+    // bite of an arcade laser. Two detuned saws thicken the tone, a
+    // square an octave down gives it a chest, and a snap of noise is
+    // the trigger transient. Short and mid-pitched on purpose — bolts
+    // fire constantly at high waves, so no whistle tails.
+    let body = sweep_exp(0.14, 1500.0, 240.0, 11.0, 0.30, saw);
+    let edge = sweep_exp(0.14, 1512.0, 252.0, 11.0, 0.20, saw);
+    let sub = sweep_exp(0.14, 750.0, 120.0, 11.0, 0.16, square);
+    let snap = burst(0.02, 45.0, 0.22);
+    to_sound(mix(mix(mix(body, &edge), &sub), &snap))
 }
 
 fn bolt_impact() -> StaticSoundData {

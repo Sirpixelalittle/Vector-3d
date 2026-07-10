@@ -1,0 +1,16 @@
+// Bolt laser, candidate A — "ray-gun zap" (what sounds.rs ships now).
+// Detuned saws for electric bite, square sub an octave down for body,
+// noise snap as the trigger. Short: bolts fire constantly at high waves.
+//
+//   cargo run -p soundlab -- sketches/bolt-laser-a.sound.ron
+//
+// Tweak ideas: `from:`/`to:` = pitch; `dur:` = length; `decay:` higher
+// = snappier; drop the Square layer for a thinner beam.
+Sound(
+    layers: [
+        [SweepExp(dur: 0.14, from: 1500.0, to: 240.0, decay: 11.0, amp: 0.30, shape: Saw)],
+        [SweepExp(dur: 0.14, from: 1512.0, to: 252.0, decay: 11.0, amp: 0.20, shape: Saw)],
+        [SweepExp(dur: 0.14, from: 750.0, to: 120.0, decay: 11.0, amp: 0.16, shape: Square)],
+        [Burst(dur: 0.02, decay: 45.0, amp: 0.22)],
+    ],
+)

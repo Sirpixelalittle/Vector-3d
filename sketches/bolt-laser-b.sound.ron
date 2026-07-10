@@ -1,0 +1,12 @@
+// Bolt laser, candidate B — "thin zap": shorter and snappier than A,
+// more arcade-cabinet, less body. Good if A feels too heavy in a
+// crowd of sentinels.
+//
+//   cargo run -p soundlab -- sketches/bolt-laser-b.sound.ron
+Sound(
+    layers: [
+        [SweepExp(dur: 0.10, from: 1200.0, to: 300.0, decay: 14.0, amp: 0.34, shape: Saw)],
+        [SweepExp(dur: 0.10, from: 604.0, to: 150.0, decay: 14.0, amp: 0.18, shape: Saw)],
+        [Burst(dur: 0.015, decay: 50.0, amp: 0.20)],
+    ],
+)
