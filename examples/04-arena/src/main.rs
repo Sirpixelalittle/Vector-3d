@@ -143,38 +143,27 @@ impl Weapon {
             * self.fit
     }
 
-    fn frame_geometry_into(
-        &self,
-        bob_phase: f32,
-        recoil: f32,
-        segments: &mut Vec<Segment>,
-        vertices: &mut Vec<Vec3>,
-        indices: &mut Vec<u32>,
-    ) {
-        let placement = self.placement(bob_phase, recoil);
+    fn static_segments_into(&self, segments: &mut Vec<Segment>) {
         segments.clear();
-        vertices.clear();
-        indices.clear();
-        let start = segments.len();
         self.model
             .edge_segments_into(EdgeKind::Always, WEAPON_GLOW, segments);
-        for segment in &mut segments[start..] {
-            segment.a = placement.transform_point3(segment.a);
-            segment.b = placement.transform_point3(segment.b);
-        }
+    }
+
+    /// Build only the view-dependent weapon strokes. The fixed crease edges
+    /// and occluder mesh stay in model space on the GPU; `placement` moves
+    /// those through the static weapon camera instead of rebuilding them.
+    fn frame_segments_into(
+        &self,
+        placement: Mat4,
+        segments: &mut Vec<Segment>,
+    ) {
+        segments.clear();
         self.model.silhouette_segments_into(
             placement,
             Vec3::ZERO,
             WEAPON_SILHOUETTE_GLOW,
             segments,
         );
-        vertices.extend(
-            self.model
-                .vertices
-                .iter()
-                .map(|&v| placement.transform_point3(v)),
-        );
-        indices.extend_from_slice(&self.model.occluder_indices);
     }
 }
 
@@ -741,13 +730,15 @@ fn append_hud_segments(
 
 struct Renderers {
     world_camera: CameraBinding,
-    weapon_camera: CameraBinding,
+    weapon_static_camera: CameraBinding,
+    weapon_dynamic_camera: CameraBinding,
     hud_camera: CameraBinding,
     world_lines: LineRenderer,
     dynamic_lines: LineRenderer,
     world_occluders: OccluderRenderer,
     dynamic_occluders: OccluderRenderer,
-    weapon_lines: LineRenderer,
+    weapon_static_lines: LineRenderer,
+    weapon_dynamic_lines: LineRenderer,
     weapon_occluders: OccluderRenderer,
     hud_lines: LineRenderer,
     post: PostProcessor,
@@ -756,19 +747,22 @@ struct Renderers {
 impl Renderers {
     fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat) -> Self {
         let world_camera = CameraBinding::new(device);
-        let weapon_camera = CameraBinding::new(device);
+        let weapon_static_camera = CameraBinding::new(device);
+        let weapon_dynamic_camera = CameraBinding::new(device);
         let hud_camera = CameraBinding::new(device);
         Self {
             world_lines: LineRenderer::new(device, HDR_FORMAT, &world_camera),
             dynamic_lines: LineRenderer::new(device, HDR_FORMAT, &world_camera),
             world_occluders: OccluderRenderer::new(device, &world_camera),
             dynamic_occluders: OccluderRenderer::new(device, &world_camera),
-            weapon_lines: LineRenderer::new(device, HDR_FORMAT, &weapon_camera),
-            weapon_occluders: OccluderRenderer::new(device, &weapon_camera),
+            weapon_static_lines: LineRenderer::new(device, HDR_FORMAT, &weapon_static_camera),
+            weapon_dynamic_lines: LineRenderer::new(device, HDR_FORMAT, &weapon_dynamic_camera),
+            weapon_occluders: OccluderRenderer::new(device, &weapon_static_camera),
             hud_lines: LineRenderer::new(device, HDR_FORMAT, &hud_camera),
             post: PostProcessor::new(device, output_format),
             world_camera,
-            weapon_camera,
+            weapon_static_camera,
+            weapon_dynamic_camera,
             hud_camera,
         }
     }
@@ -802,6 +796,7 @@ struct ArenaApp {
     game: Game,
     renderers: Option<Renderers>,
     world_uploaded: bool,
+    weapon_uploaded: bool,
     time: f32,
     post_settings: PostSettings,
     screen: Screen,
@@ -819,14 +814,13 @@ struct ArenaApp {
     audio_failed: bool,
     /// The arena's own sound bank, handed to the engine to play.
     sounds: Sounds,
-    /// Reused CPU-side geometry buffers for the dynamic, weapon, and HUD
-    /// uploads. They grow to the largest frame and are cleared in place.
+    /// Reused CPU-side geometry buffers for dynamic world geometry,
+    /// view-dependent weapon strokes, and HUD uploads. They grow to the
+    /// largest frame and are cleared in place.
     dynamic_segments: Vec<Segment>,
     dynamic_vertices: Vec<Vec3>,
     dynamic_indices: Vec<u32>,
     weapon_segments: Vec<Segment>,
-    weapon_vertices: Vec<Vec3>,
-    weapon_indices: Vec<u32>,
     hud_segments: Vec<Segment>,
 }
 
@@ -911,6 +905,7 @@ impl ArenaApp {
             game: Game::new(),
             renderers: None,
             world_uploaded: false,
+            weapon_uploaded: false,
             time: 0.0,
             audio: None,
             audio_failed: false,
@@ -919,8 +914,6 @@ impl ArenaApp {
             dynamic_vertices: Vec::new(),
             dynamic_indices: Vec::new(),
             weapon_segments: Vec::new(),
-            weapon_vertices: Vec::new(),
-            weapon_indices: Vec::new(),
             hud_segments: Vec::new(),
             screen: Screen::Menu,
             menu: menu::Menu::new(),
@@ -1008,6 +1001,25 @@ impl ArenaApp {
                 &self.scene.occluder_indices,
             );
             self.world_uploaded = true;
+        }
+
+        if !self.weapon_uploaded {
+            if let Some(weapon) = &self.weapon {
+                let mut static_segments = Vec::new();
+                weapon.static_segments_into(&mut static_segments);
+                renderers.weapon_static_lines.set_segments(
+                    &frame.gpu.device,
+                    &frame.gpu.queue,
+                    &static_segments,
+                );
+                renderers.weapon_occluders.set_geometry(
+                    &frame.gpu.device,
+                    &frame.gpu.queue,
+                    &weapon.model.vertices,
+                    &weapon.model.occluder_indices,
+                );
+            }
+            self.weapon_uploaded = true;
         }
 
         match self.screen {
@@ -1133,19 +1145,14 @@ impl ArenaApp {
             &mut self.dynamic_vertices,
             &mut self.dynamic_indices,
         );
+        let mut weapon_placement = None;
         if let Some(weapon) = &self.weapon {
-            weapon.frame_geometry_into(
-                self.player.bob_phase(),
-                self.game.recoil(),
-                &mut self.weapon_segments,
-                &mut self.weapon_vertices,
-                &mut self.weapon_indices,
-            );
+            let placement = weapon.placement(self.player.bob_phase(), self.game.recoil());
+            weapon.frame_segments_into(placement, &mut self.weapon_segments);
             append_muzzle_flash(self.game.recoil(), &mut self.weapon_segments);
+            weapon_placement = Some(placement);
         } else {
             self.weapon_segments.clear();
-            self.weapon_vertices.clear();
-            self.weapon_indices.clear();
         }
         self.hud_segments.clear();
         append_hud_segments(
@@ -1248,25 +1255,33 @@ impl ArenaApp {
             false,
         );
 
-        if self.weapon.is_some() {
+        if let Some(placement) = weapon_placement {
             // Muzzle flash lives in the weapon layer, pinned to the barrel
             // tip, so it never smears across the world near the camera.
             renderers
-                .weapon_lines
+                .weapon_dynamic_lines
                 .set_segments(&frame.gpu.device, &frame.gpu.queue, &self.weapon_segments);
-            renderers.weapon_occluders.set_geometry(
-                &frame.gpu.device,
-                &frame.gpu.queue,
-                &self.weapon_vertices,
-                &self.weapon_indices,
+            let weapon_proj = glam::camera::rh::proj::directx::perspective(
+                WEAPON_FOV_DEG.to_radians(),
+                aspect,
+                0.02,
+                10.0,
             );
-            let weapon_uniform = CameraUniform::new(
-                glam::camera::rh::proj::directx::perspective(
-                    WEAPON_FOV_DEG.to_radians(),
-                    aspect,
-                    0.02,
-                    10.0,
-                ),
+            let static_uniform = CameraUniform::new(
+                weapon_proj * placement,
+                frame.viewport,
+                LINE_WIDTH_PX,
+                // Weapon depth cueing is disabled, so this eye is unused.
+                Vec3::ZERO,
+                0.0,
+                self.time,
+                self.post_settings.glow,
+            );
+            renderers
+                .weapon_static_camera
+                .update(&frame.gpu.queue, &static_uniform);
+            let dynamic_uniform = CameraUniform::new(
+                weapon_proj,
                 frame.viewport,
                 LINE_WIDTH_PX,
                 Vec3::ZERO,
@@ -1275,19 +1290,27 @@ impl ArenaApp {
                 self.post_settings.glow,
             );
             renderers
-                .weapon_camera
-                .update(&frame.gpu.queue, &weapon_uniform);
+                .weapon_dynamic_camera
+                .update(&frame.gpu.queue, &dynamic_uniform);
             renderers.weapon_occluders.render(
                 &mut encoder,
                 frame.depth,
-                &renderers.weapon_camera,
+                &renderers.weapon_static_camera,
                 true,
             );
-            renderers.weapon_lines.render(
+            renderers.weapon_static_lines.render(
                 &mut encoder,
                 hdr,
                 frame.depth,
-                &renderers.weapon_camera,
+                &renderers.weapon_static_camera,
+                false,
+                false,
+            );
+            renderers.weapon_dynamic_lines.render(
+                &mut encoder,
+                hdr,
+                frame.depth,
+                &renderers.weapon_dynamic_camera,
                 false,
                 false,
             );
